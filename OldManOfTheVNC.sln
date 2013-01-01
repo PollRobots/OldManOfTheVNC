@@ -9,6 +9,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OldManOfTheVncMetro", "OldM
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OmotVnc.Metro.Protocol", "OmotVnc.Metro.Protocol\OmotVnc.Metro.Protocol.csproj", "{311CB00D-BFC1-4E83-8926-81483489B9A7}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{1074E5B7-A8E6-43E5-A60C-6702CB52B8BC}"
+	ProjectSection(SolutionItems) = preProject
+		README = README
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
