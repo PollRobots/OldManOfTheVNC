@@ -15,22 +15,23 @@
 namespace OldManOfTheVncMetro
 {
     using System;
-    using System.Runtime.InteropServices.WindowsRuntime;
-    using System.Threading.Tasks;
-    using PollRobots.OmotVncProtocol;
-    using Windows.Devices.Input;
-    using Windows.Networking;
-    using Windows.Networking.Sockets;
-    using Windows.Storage;
-    using Windows.System;
-    using Windows.UI.Core;
-    using Windows.UI.Input;
-    using Windows.UI.Xaml;
-    using Windows.UI.Xaml.Controls;
-    using Windows.UI.Xaml.Input;
-    using Windows.UI.Xaml.Media.Animation;
-    using Windows.UI.Xaml.Media.Imaging;
-    using Windows.UI.Xaml.Navigation;
+using System.Runtime.InteropServices.WindowsRuntime;
+using System.Threading.Tasks;
+using System.Windows.Input;
+using PollRobots.OmotVncProtocol;
+using Windows.Devices.Input;
+using Windows.Networking;
+using Windows.Networking.Sockets;
+using Windows.Storage;
+using Windows.System;
+using Windows.UI.Core;
+using Windows.UI.Input;
+using Windows.UI.Xaml;
+using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Input;
+using Windows.UI.Xaml.Media.Animation;
+using Windows.UI.Xaml.Media.Imaging;
+using Windows.UI.Xaml.Navigation;
 
     /// <summary>
     /// An empty page that can be used on its own or navigated to within a Frame.
@@ -114,6 +115,9 @@ namespace OldManOfTheVncMetro
 
                     if (requiresPassword)
                     {
+                        if (string.IsNullOrEmpty(password)) {
+                            password = await this.GetPassword();
+                        }
                         await this.connection.SendPassword(password);
                     }
 
@@ -139,6 +143,30 @@ namespace OldManOfTheVncMetro
                     });
                 }
             });
+        }
+
+        Task<string> GetPassword()
+        {
+            TaskCompletionSource<string> source = new TaskCompletionSource<string>();
+
+            Invoke(() => {
+                this.PasswordRequired.Visibility = Visibility.Visible;
+                this.Password.IsEnabled = true;
+                this.Password.Focus(FocusState.Programmatic);
+                this.ConnectButton.Visibility = Visibility.Collapsed;
+                this.SendPassword.Visibility = Visibility.Visible;
+                this.SendPassword.Command = new DelegateCommand(() =>
+                    {
+                        source.SetResult(this.Password.Password);
+                        this.SendPassword.Command = null;
+                        this.PasswordRequired.Visibility = Visibility.Collapsed;
+                        this.Password.IsEnabled = false;
+                        this.ConnectButton.Visibility = Visibility.Visible;
+                        this.SendPassword.Visibility = Visibility.Collapsed;
+                    });
+            });
+
+            return source.Task;
         }
 
         void Invoke(Action action)
@@ -180,11 +208,16 @@ namespace OldManOfTheVncMetro
             switch (state)
             {
                 case ConnectionState.Disconnected:
+                    this.PasswordRequired.Visibility = Visibility.Collapsed;
                     this.ConnectPanel.Visibility = Visibility.Visible;
                     this.Connecting.Visibility = Visibility.Collapsed;
                     this.Server.IsEnabled = true;
                     this.Port.IsEnabled = true;
                     this.Password.IsEnabled = true;
+                    this.ConnectButton.IsEnabled = true;
+                    this.FocusCarrier.IsEnabled = false;
+                    this.ConnectButton.Visibility = Visibility.Visible;
+                    this.SendPassword.Visibility = Visibility.Collapsed;
                     Window.Current.CoreWindow.PointerCursor = new CoreCursor(CoreCursorType.Arrow, 1);
                     this.isConnected = false;
                     this.hasRectangle = false;
@@ -195,6 +228,7 @@ namespace OldManOfTheVncMetro
                     this.Server.IsEnabled = false;
                     this.Port.IsEnabled = false;
                     this.Password.IsEnabled = false;
+                    this.ConnectButton.IsEnabled = false;
                     this.Connecting.Visibility = Visibility.Visible;
                     break;
                 case ConnectionState.Connected:
@@ -212,6 +246,7 @@ namespace OldManOfTheVncMetro
             {
                 this.ConnectPanel.Visibility = Visibility.Collapsed;
                 Window.Current.CoreWindow.PointerCursor = new CoreCursor(CoreCursorType.Cross, 1);
+                this.FocusCarrier.IsEnabled = true;
             }
         }
 
@@ -260,7 +295,7 @@ namespace OldManOfTheVncMetro
 
         private void FrameBufferPointerMoved(object sender, PointerRoutedEventArgs e)
         {
-            if (this.connection == null) 
+            if (this.connection == null || !this.isConnected) 
             {
                 return;
             }
@@ -376,7 +411,7 @@ namespace OldManOfTheVncMetro
 
         private void HandleKey(object sender, KeyRoutedEventArgs e)
         {
-            if (this.connection == null)
+            if (this.connection == null || !this.isConnected)
             {
                 return;
             }
@@ -608,7 +643,7 @@ namespace OldManOfTheVncMetro
 
         void Keyboard_KeyChange(object sender, KeyEventArgs e)
         {
-            if (this.connection == null)
+            if (this.connection == null || !this.isConnected)
             {
                 return;
             }
@@ -625,7 +660,15 @@ namespace OldManOfTheVncMetro
                     e.OriginalSource == this.Port ||
                     e.OriginalSource == this.Password)
                 {
-                    this.ClickConnect(sender, e);
+                    if (this.ConnectButton.IsEnabled)
+                    {
+                        this.ClickConnect(sender, e);
+                    }
+                    else if (this.SendPassword.IsEnabled &&
+                        this.SendPassword.Command != null)
+                    {
+                        this.SendPassword.Command.Execute(this.SendPassword.CommandParameter);
+                    }
                 }
             }
         }

@@ -74,10 +74,17 @@
                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Port" VerticalAlignment="Center" Style="{StaticResource ItemTextStyle}" Margin="20,10" />
                     <TextBox Grid.Row="1" Grid.Column="1" Text="5900" VerticalAlignment="Center" Width="50" HorizontalAlignment="Left" Name="Port"/>
 
+                    <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Grid.RowSpan="2" Background="{StaticResource ComboBoxItemSelectedPointerOverBackgroundThemeBrush}"
+                            Name="PasswordRequired" Visibility="Collapsed">
+                        <TextBlock VerticalAlignment="Bottom" TextAlignment="Center" Margin="20" Style="{StaticResource SubheaderTextStyle}"
+                                   Text="This Server requires a password."/>
+                    </Border>
+
                     <TextBlock Grid.Row="2" Grid.Column="0" Text="Password" VerticalAlignment="Center" Style="{StaticResource ItemTextStyle}" Margin="20,10" />
                     <PasswordBox Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Width="200" Name="Password" />
 
                     <Button Grid.Row="3" Grid.Column="2" Content="Connect" Margin="20,10" Click="ClickConnect" Name="ConnectButton"/>
+                    <Button Grid.Row="3" Grid.Column="2" Content="SendPassword" Margin="20,10" Name="SendPassword" Visibility="Collapsed"/>
                 </Grid>
             </Grid>
         </Grid>
