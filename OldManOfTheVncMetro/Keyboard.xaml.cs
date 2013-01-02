@@ -28,6 +28,10 @@ namespace OldManOfTheVncMetro
 
     public sealed partial class Keyboard : UserControl
     {
+        private const string KeyboardLayouts = "ms-appx:///Assets/keyboards.txt";
+
+        private Dictionary<string, Uri> knownKeyboardLayouts = new Dictionary<string, Uri>();
+
         private bool isShifted;
         private Dictionary<int, KeyInfo> allKeys;
 
@@ -35,9 +39,36 @@ namespace OldManOfTheVncMetro
         {
             this.InitializeComponent();
 
-            Style style = this.Resources["KeyButton"] as Style;
-            Task.Run(async () => await LoadKeyboard(new Uri("ms-appx:///Assets/us.csv"), style));
+            Task.Run(async () => await FindKeyboards());
         }
+
+        private string currentLayout;
+
+        public string CurrentLayout
+        {
+            get { return this.currentLayout; }
+            set 
+            {
+                Uri uri;
+
+                if (this.knownKeyboardLayouts.TryGetValue(value, out uri))
+                {
+                    this.currentLayout = value;
+                    Style style = this.Resources["KeyButton"] as Style;
+                    this.MainGrid.Children.Clear();
+                    Task.Run(async () => await LoadKeyboard(uri, style));
+                }
+            }
+        }
+
+        public IEnumerable<string> AvailableLayouts
+        {
+            get
+            {
+                return this.knownKeyboardLayouts.Keys;
+            }
+        }
+        
 
         public VncKey LookupKey(bool isShifted, int scancode)
         {
@@ -56,6 +87,45 @@ namespace OldManOfTheVncMetro
             return info.Code;
         }
 
+        private async Task FindKeyboards()
+        {
+            var defaultName = string.Empty;
+            var file = await StorageFile.GetFileFromApplicationUriAsync(new Uri(KeyboardLayouts));
+            using (var stream = await file.OpenStreamForReadAsync())
+            {
+                var textReader = (TextReader)new StreamReader(stream);
+                string line;
+                var first = true;
+                Dictionary<string, Uri> layouts = new Dictionary<string, Uri>();
+                while (null != (line = await textReader.ReadLineAsync()))
+                {
+                    if (string.IsNullOrWhiteSpace(line) ||
+                        line.StartsWith("#"))
+                    {
+                        continue;
+                    }
+
+                    var elements = line.Split(new[] { ',' }, 2);
+                    if (elements.Length != 2)
+                    {
+                        continue;
+                    }
+
+                    if (first == true)
+                    {
+                        defaultName = elements[0];
+                        first = false;
+                    }
+
+                    layouts[elements[0]] = new Uri(elements[1]);
+                }
+
+                this.knownKeyboardLayouts = layouts;
+            }
+
+            this.Invoke(() => this.CurrentLayout = defaultName);
+        }
+
         private async Task LoadKeyboard(Uri uri, Style style)
         {
             var file = await StorageFile.GetFileFromApplicationUriAsync(uri);
@@ -66,7 +136,8 @@ namespace OldManOfTheVncMetro
                 Dictionary<int, KeyInfo> allkeys = new Dictionary<int, KeyInfo>();
                 while (null != (line = await textReader.ReadLineAsync()))
                 {
-                    if (line.StartsWith("#"))
+                    if (string.IsNullOrWhiteSpace(line) ||
+                        line.StartsWith("#"))
                     {
                         continue;
                     }

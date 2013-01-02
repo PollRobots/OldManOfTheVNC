@@ -21,12 +21,14 @@ namespace OldManOfTheVncMetro
     using Windows.Devices.Input;
     using Windows.Networking;
     using Windows.Networking.Sockets;
-    using Windows.Storage;
     using Windows.System;
+    using Windows.UI.ApplicationSettings;
     using Windows.UI.Core;
     using Windows.UI.Input;
+    using Windows.UI.Popups;
     using Windows.UI.Xaml;
     using Windows.UI.Xaml.Controls;
+    using Windows.UI.Xaml.Controls.Primitives;
     using Windows.UI.Xaml.Input;
     using Windows.UI.Xaml.Media.Animation;
     using Windows.UI.Xaml.Media.Imaging;
@@ -48,37 +50,85 @@ namespace OldManOfTheVncMetro
         private bool hasSettings;
         private bool isLeftShiftDown;
         private bool isRightShiftDown;
+        private Popup settingsPopup;
 
         public MainPage()
         {
             this.InitializeComponent();
             this.Keyboard.KeyChange += Keyboard_KeyChange;
 
-            this.Server.Text = this.GetLocalSetting("Server");
-            this.Port.Text = this.GetLocalSetting("Port", "5900");
-            this.Password.Password = this.GetLocalSetting("Password");
-
-            if (this.hasSettings)
+            Task.Run(async () =>
             {
-                this.Invoke(() => this.ConnectButton.Focus(FocusState.Programmatic));
-            }
+                var server = await Settings.GetLocalSetting("Server");
+                var port = await Settings.GetLocalSetting("Port", "5900");
+                var password = await Settings.GetLocalSetting("Password", defaultValue: "", isEncrypted: true);
+
+                this.Invoke(() =>
+                {
+                    this.Server.Text = server;
+                    this.Port.Text = port;
+                    this.Password.Password = password;
+
+                    if (!string.IsNullOrEmpty(server))
+                    {
+                        this.ConnectButton.Focus(FocusState.Programmatic);
+                    }
+                });
+            });
+
+            var settingsPane = SettingsPane.GetForCurrentView();
+            settingsPane.CommandsRequested += settingsPane_CommandsRequested;
         }
 
-        private string GetLocalSetting(string name, string defaultValue = "")
+        void settingsPane_CommandsRequested(SettingsPane sender, SettingsPaneCommandsRequestedEventArgs args)
         {
-            object value = ApplicationData.Current.LocalSettings.Values[name];
-            if (value == null)
-            {
-                return defaultValue;
-            }
-
-            this.hasSettings = true;
-            return value.ToString();
+            var commands = args.Request.ApplicationCommands;
+            commands.Add(new SettingsCommand("KayboardLayout", "Keyboard Layout", new UICommandInvokedHandler(this.ChooseKeyboardLayout)));
         }
 
-        private void SetLocalSetting(string name, string value)
+        void ChooseKeyboardLayout(IUICommand command)
         {
-            ApplicationData.Current.LocalSettings.Values[name] = value;
+            settingsPopup = new Popup();
+            settingsPopup.Closed += SettingsPopupClosed;
+            Window.Current.Activated += OnActivatedBySettings;
+            settingsPopup.IsLightDismissEnabled = true;
+
+            settingsPopup.Width = 300;
+            settingsPopup.Height = Window.Current.Bounds.Height;
+
+            settingsPopup.ChildTransitions = new TransitionCollection();
+            settingsPopup.ChildTransitions.Add(new PaneThemeTransition
+            {
+                Edge = SettingsPane.Edge == SettingsEdgeLocation.Right ?
+                EdgeTransitionLocation.Right :
+                EdgeTransitionLocation.Left
+            });
+
+
+            var settings = new KeyboardLayoutSettings(this.Keyboard);
+            settings.Width = 300;
+            settings.Height = Window.Current.Bounds.Height;
+            settingsPopup.Child = settings;
+
+            settingsPopup.SetValue(Canvas.LeftProperty, SettingsPane.Edge == SettingsEdgeLocation.Right ?
+                Window.Current.Bounds.Width - 300 : 0);
+            settingsPopup.SetValue(Canvas.TopProperty, 0);
+
+            settingsPopup.IsOpen = true;
+        }
+
+        void SettingsPopupClosed(object sender, object e)
+        {
+            Window.Current.Activated -= OnActivatedBySettings;
+            FocusCarrier.Focus(FocusState.Programmatic);
+        }
+
+        void OnActivatedBySettings(object sender, WindowActivatedEventArgs e)
+        {
+            if (e.WindowActivationState == CoreWindowActivationState.Deactivated)
+            {
+                settingsPopup.IsOpen = false;
+            }
         }
 
         /// <summary>
@@ -126,9 +176,9 @@ namespace OldManOfTheVncMetro
 
                     this.Invoke(() =>
                     {
-                        this.SetLocalSetting("Server", server);
-                        this.SetLocalSetting("Port", port);
-                        this.SetLocalSetting("Password", password);
+                        Settings.SetLocalSetting("Server", server);
+                        Settings.SetLocalSetting("Port", port);
+                        Settings.SetLocalSetting("Password", password, isEncrypted: true);
 
                         this.StartFrameBuffer(connectionInfo);
                     });
@@ -416,6 +466,13 @@ namespace OldManOfTheVncMetro
             }
 
             int scancode = (e.KeyStatus.IsExtendedKey ? 0xE000 : 0) | (int)e.KeyStatus.ScanCode;
+            
+            // for some reason the tab key comes through with a scancode of 0??
+            if (e.KeyStatus.ScanCode == 0 &&
+                e.Key == VirtualKey.Tab)
+            {
+                scancode = 0x0F;
+            }
             var pressed = !e.KeyStatus.IsKeyReleased;
 
             VncKey vncKey = this.Keyboard.LookupKey(isLeftShiftDown || isRightShiftDown, scancode);
