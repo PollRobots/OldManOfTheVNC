@@ -15,23 +15,22 @@
 namespace OldManOfTheVncMetro
 {
     using System;
-using System.Runtime.InteropServices.WindowsRuntime;
-using System.Threading.Tasks;
-using System.Windows.Input;
-using PollRobots.OmotVncProtocol;
-using Windows.Devices.Input;
-using Windows.Networking;
-using Windows.Networking.Sockets;
-using Windows.Storage;
-using Windows.System;
-using Windows.UI.Core;
-using Windows.UI.Input;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Input;
-using Windows.UI.Xaml.Media.Animation;
-using Windows.UI.Xaml.Media.Imaging;
-using Windows.UI.Xaml.Navigation;
+    using System.Runtime.InteropServices.WindowsRuntime;
+    using System.Threading.Tasks;
+    using PollRobots.OmotVncProtocol;
+    using Windows.Devices.Input;
+    using Windows.Networking;
+    using Windows.Networking.Sockets;
+    using Windows.Storage;
+    using Windows.System;
+    using Windows.UI.Core;
+    using Windows.UI.Input;
+    using Windows.UI.Xaml;
+    using Windows.UI.Xaml.Controls;
+    using Windows.UI.Xaml.Input;
+    using Windows.UI.Xaml.Media.Animation;
+    using Windows.UI.Xaml.Media.Imaging;
+    using Windows.UI.Xaml.Navigation;
 
     /// <summary>
     /// An empty page that can be used on its own or navigated to within a Frame.
