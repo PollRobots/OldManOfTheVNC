@@ -21,12 +21,14 @@ namespace OldManOfTheVncMetro
     using Windows.Devices.Input;
     using Windows.Networking;
     using Windows.Networking.Sockets;
-    using Windows.Storage;
     using Windows.System;
+    using Windows.UI.ApplicationSettings;
     using Windows.UI.Core;
     using Windows.UI.Input;
+    using Windows.UI.Popups;
     using Windows.UI.Xaml;
     using Windows.UI.Xaml.Controls;
+    using Windows.UI.Xaml.Controls.Primitives;
     using Windows.UI.Xaml.Input;
     using Windows.UI.Xaml.Media.Animation;
     using Windows.UI.Xaml.Media.Imaging;
@@ -48,37 +50,85 @@ namespace OldManOfTheVncMetro
         private bool hasSettings;
         private bool isLeftShiftDown;
         private bool isRightShiftDown;
+        private Popup settingsPopup;
 
         public MainPage()
         {
             this.InitializeComponent();
             this.Keyboard.KeyChange += Keyboard_KeyChange;
 
-            this.Server.Text = this.GetLocalSetting("Server");
-            this.Port.Text = this.GetLocalSetting("Port", "5900");
-            this.Password.Password = this.GetLocalSetting("Password");
-
-            if (this.hasSettings)
+            Task.Run(async () =>
             {
-                this.Invoke(() => this.ConnectButton.Focus(FocusState.Programmatic));
-            }
+                var server = await Settings.GetLocalSetting("Server");
+                var port = await Settings.GetLocalSetting("Port", "5900");
+                var password = await Settings.GetLocalSetting("Password", defaultValue: "", isEncrypted: true);
+
+                this.Invoke(() =>
+                {
+                    this.Server.Text = server;
+                    this.Port.Text = port;
+                    this.Password.Password = password;
+
+                    if (!string.IsNullOrEmpty(server))
+                    {
+                        this.ConnectButton.Focus(FocusState.Programmatic);
+                    }
+                });
+            });
+
+            var settingsPane = SettingsPane.GetForCurrentView();
+            settingsPane.CommandsRequested += settingsPane_CommandsRequested;
         }
 
-        private string GetLocalSetting(string name, string defaultValue = "")
+        void settingsPane_CommandsRequested(SettingsPane sender, SettingsPaneCommandsRequestedEventArgs args)
         {
-            object value = ApplicationData.Current.LocalSettings.Values[name];
-            if (value == null)
-            {
-                return defaultValue;
-            }
-
-            this.hasSettings = true;
-            return value.ToString();
+            var commands = args.Request.ApplicationCommands;
+            commands.Add(new SettingsCommand("KayboardLayout", "Keyboard Layout", new UICommandInvokedHandler(this.ChooseKeyboardLayout)));
         }
 
-        private void SetLocalSetting(string name, string value)
+        void ChooseKeyboardLayout(IUICommand command)
         {
-            ApplicationData.Current.LocalSettings.Values[name] = value;
+            settingsPopup = new Popup();
+            settingsPopup.Closed += SettingsPopupClosed;
+            Window.Current.Activated += OnActivatedBySettings;
+            settingsPopup.IsLightDismissEnabled = true;
+
+            settingsPopup.Width = 300;
+            settingsPopup.Height = Window.Current.Bounds.Height;
+
+            settingsPopup.ChildTransitions = new TransitionCollection();
+            settingsPopup.ChildTransitions.Add(new PaneThemeTransition
+            {
+                Edge = SettingsPane.Edge == SettingsEdgeLocation.Right ?
+                EdgeTransitionLocation.Right :
+                EdgeTransitionLocation.Left
+            });
+
+
+            var settings = new KeyboardLayoutSettings(this.Keyboard);
+            settings.Width = 300;
+            settings.Height = Window.Current.Bounds.Height;
+            settingsPopup.Child = settings;
+
+            settingsPopup.SetValue(Canvas.LeftProperty, SettingsPane.Edge == SettingsEdgeLocation.Right ?
+                Window.Current.Bounds.Width - 300 : 0);
+            settingsPopup.SetValue(Canvas.TopProperty, 0);
+
+            settingsPopup.IsOpen = true;
+        }
+
+        void SettingsPopupClosed(object sender, object e)
+        {
+            Window.Current.Activated -= OnActivatedBySettings;
+            FocusCarrier.Focus(FocusState.Programmatic);
+        }
+
+        void OnActivatedBySettings(object sender, WindowActivatedEventArgs e)
+        {
+            if (e.WindowActivationState == CoreWindowActivationState.Deactivated)
+            {
+                settingsPopup.IsOpen = false;
+            }
         }
 
         /// <summary>
@@ -126,9 +176,9 @@ namespace OldManOfTheVncMetro
 
                     this.Invoke(() =>
                     {
-                        this.SetLocalSetting("Server", server);
-                        this.SetLocalSetting("Port", port);
-                        this.SetLocalSetting("Password", password);
+                        Settings.SetLocalSetting("Server", server);
+                        Settings.SetLocalSetting("Port", port);
+                        Settings.SetLocalSetting("Password", password, isEncrypted: true);
 
                         this.StartFrameBuffer(connectionInfo);
                     });
@@ -414,208 +464,33 @@ namespace OldManOfTheVncMetro
             {
                 return;
             }
-            
-            uint key = 0;
-            switch (e.Key)
-            {
-                case VirtualKey.Back:
-                    key = (uint)VncKey.BackSpace;
-                    break;
-                case VirtualKey.Tab:
-                    key = (uint)VncKey.Tab;
-                    break;
-                case VirtualKey.Enter:
-                    key = (uint)VncKey.Enter;
-                    break;
-                case VirtualKey.Escape:
-                    key = (uint)VncKey.Escape;
-                    break;
-                case VirtualKey.Insert:
-                    key = (uint)VncKey.Insert;
-                    break;
-                case VirtualKey.Delete:
-                    key = (uint)VncKey.Delete;
-                    break;
-                case VirtualKey.Home:
-                    key = (uint)VncKey.Home;
-                    break;
-                case VirtualKey.End:
-                    key = (uint)VncKey.End;
-                    break;
-                case VirtualKey.PageUp:
-                    key = (uint)VncKey.PageUp;
-                    break;
-                case VirtualKey.PageDown:
-                    key = (uint)VncKey.PageDown;
-                    break;
-                case VirtualKey.Left:
-                    key = (uint)VncKey.Left;
-                    break;
-                case VirtualKey.Up:
-                    key = (uint)VncKey.Up;
-                    break;
-                case VirtualKey.Right:
-                    key = (uint)VncKey.Right;
-                    break;
-                case VirtualKey.Down:
-                    key = (uint)VncKey.Down;
-                    break;
-                case VirtualKey.F1:
-                    key = (uint)VncKey.F1;
-                    break;
-                case VirtualKey.F2:
-                    key = (uint)VncKey.F2;
-                    break;
-                case VirtualKey.F3:
-                    key = (uint)VncKey.F3;
-                    break;
-                case VirtualKey.F4:
-                    key = (uint)VncKey.F4;
-                    break;
-                case VirtualKey.F5:
-                    key = (uint)VncKey.F5;
-                    break;
-                case VirtualKey.F6:
-                    key = (uint)VncKey.F6;
-                    break;
-                case VirtualKey.F7:
-                    key = (uint)VncKey.F7;
-                    break;
-                case VirtualKey.F8:
-                    key = (uint)VncKey.F8;
-                    break;
-                case VirtualKey.F9:
-                    key = (uint)VncKey.F9;
-                    break;
-                case VirtualKey.F10:
-                    key = (uint)VncKey.F10;
-                    break;
-                case VirtualKey.F11:
-                    key = (uint)VncKey.F11;
-                    break;
-                case VirtualKey.F12:
-                    key = (uint)VncKey.F12;
-                    break;
-                case VirtualKey.Shift:
-                case VirtualKey.LeftShift:
-                    key = (uint)VncKey.ShiftLeft;
-                    this.isLeftShiftDown = !e.KeyStatus.IsKeyReleased;
-                    break;
-                case VirtualKey.RightShift:
-                    key = (uint)VncKey.ShiftRight;
-                    this.isRightShiftDown = !e.KeyStatus.IsKeyReleased;
-                    break;
-                case VirtualKey.Control:
-                case VirtualKey.LeftControl:
-                    key = (uint)VncKey.ControlLeft;
-                    break;
-                case VirtualKey.RightControl:
-                    key = (uint)VncKey.ControlRight;
-                    break;
-                case VirtualKey.LeftWindows:
-                    key = (uint)VncKey.MetaLeft;
-                    break;
-                case VirtualKey.RightWindows:
-                case VirtualKey.Application:
-                    key = (uint)VncKey.MetaRight;
-                    break;
-                case VirtualKey.Menu:
-                case VirtualKey.LeftMenu:
-                    key = (uint)VncKey.AltLeft;
-                    break;
-                case VirtualKey.RightMenu:
-                    key = (uint)VncKey.AltRight;
-                    break;
-                default:
-                    //var modifiers = Keyboard.Modifiers;
-                    //if (!modifiers.HasFlag(ModifierKeys.Control) &&
-                    //    !modifiers.HasFlag(ModifierKeys.Alt))
-                    //{
-                    //    return;
-                    //}
 
-                    //key = (uint)TranslateKey(modifiers.HasFlag(ModifierKeys.Shift), e.Key);
-                    key = (uint)TranslateKey(this.isLeftShiftDown || this.isRightShiftDown, e.Key);
-                    break;
+            int scancode = (e.KeyStatus.IsExtendedKey ? 0xE000 : 0) | (int)e.KeyStatus.ScanCode;
+            
+            // for some reason the tab key comes through with a scancode of 0??
+            if (e.KeyStatus.ScanCode == 0 &&
+                e.Key == VirtualKey.Tab)
+            {
+                scancode = 0x0F;
+            }
+            var pressed = !e.KeyStatus.IsKeyReleased;
+
+            VncKey vncKey = this.Keyboard.LookupKey(isLeftShiftDown || isRightShiftDown, scancode);
+
+            if (vncKey == VncKey.Unknown)
+            {
+                return;
+            }
+            else if (vncKey == VncKey.ShiftLeft) {
+                this.isLeftShiftDown = pressed;
+            }
+            else if (vncKey == VncKey.ShiftRight)
+            {
+                this.isRightShiftDown = pressed;
             }
 
             e.Handled = true;
-            this.connection.SendKey(!e.KeyStatus.IsKeyReleased, key, true);
-            this.connection.Update(false);        
-        }
-
-        private char TranslateKey(bool isShifted, VirtualKey key)
-        {
-            switch (key)
-            {
-                case (VirtualKey)0xC0: return isShifted ? '~' : '`';
-                case (VirtualKey)0xBD: return isShifted ? '_' : '-';
-                case (VirtualKey)0xBB: return isShifted ? '+' : '=';
-                case (VirtualKey)0xDB: return isShifted ? '{' : '[';
-                case (VirtualKey)0xDD: return isShifted ? '}' : ']';
-                case (VirtualKey)0xDC: return isShifted ? '|' : '\\';
-                case (VirtualKey)0xBA: return isShifted ? ':' : ';';
-                case (VirtualKey)0xDE: return isShifted ? '"' : '\'';
-                case (VirtualKey)0xBC: return isShifted ? '<' : ',';
-                case (VirtualKey)0xBE: return isShifted ? '>' : '.';
-                case (VirtualKey)0xBF: return isShifted ? '?' : '/';
-
-                case VirtualKey.Number0: return isShifted ? ')' : '0';
-                case VirtualKey.Number1: return isShifted ? '!' : '1';
-                case VirtualKey.Number2: return isShifted ? '@' : '2';
-                case VirtualKey.Number3: return isShifted ? '#' : '3';
-                case VirtualKey.Number4: return isShifted ? '$' : '4';
-                case VirtualKey.Number5: return isShifted ? '%' : '5';
-                case VirtualKey.Number6: return isShifted ? '^' : '6';
-                case VirtualKey.Number7: return isShifted ? '&' : '7';
-                case VirtualKey.Number8: return isShifted ? '*' : '8';
-                case VirtualKey.Number9: return isShifted ? '(' : '9';
-
-                case VirtualKey.NumberPad0: return '0';
-                case VirtualKey.NumberPad1: return '1';
-                case VirtualKey.NumberPad2: return '2';
-                case VirtualKey.NumberPad3: return '3';
-                case VirtualKey.NumberPad4: return '4';
-                case VirtualKey.NumberPad5: return '5';
-                case VirtualKey.NumberPad6: return '6';
-                case VirtualKey.NumberPad7: return '7';
-                case VirtualKey.NumberPad8: return '8';
-                case VirtualKey.NumberPad9: return '9';
-
-                case VirtualKey.Decimal: return isShifted ? '>' : '.';
-                case VirtualKey.Divide: return isShifted ? '?' : '/';
-                case VirtualKey.Space: return ' ';
-                case VirtualKey.Subtract: return isShifted ? '_' : '-';
-
-                case VirtualKey.A: return isShifted ? 'A' : 'a';
-                case VirtualKey.B: return isShifted ? 'B' : 'b';
-                case VirtualKey.C: return isShifted ? 'C' : 'c';
-                case VirtualKey.D: return isShifted ? 'D' : 'd';
-                case VirtualKey.E: return isShifted ? 'E' : 'e';
-                case VirtualKey.F: return isShifted ? 'F' : 'f';
-                case VirtualKey.G: return isShifted ? 'G' : 'g';
-                case VirtualKey.H: return isShifted ? 'H' : 'h';
-                case VirtualKey.I: return isShifted ? 'I' : 'i';
-                case VirtualKey.J: return isShifted ? 'J' : 'j';
-                case VirtualKey.K: return isShifted ? 'K' : 'k';
-                case VirtualKey.L: return isShifted ? 'L' : 'l';
-                case VirtualKey.M: return isShifted ? 'M' : 'm';
-                case VirtualKey.N: return isShifted ? 'N' : 'n';
-                case VirtualKey.O: return isShifted ? 'O' : 'o';
-                case VirtualKey.P: return isShifted ? 'P' : 'p';
-                case VirtualKey.Q: return isShifted ? 'Q' : 'q';
-                case VirtualKey.R: return isShifted ? 'R' : 'r';
-                case VirtualKey.S: return isShifted ? 'S' : 's';
-                case VirtualKey.T: return isShifted ? 'T' : 't';
-                case VirtualKey.U: return isShifted ? 'U' : 'u';
-                case VirtualKey.V: return isShifted ? 'V' : 'v';
-                case VirtualKey.W: return isShifted ? 'W' : 'w';
-                case VirtualKey.X: return isShifted ? 'X' : 'x';
-                case VirtualKey.Y: return isShifted ? 'Y' : 'y';
-                case VirtualKey.Z: return isShifted ? 'Z' : 'z';
-                default:
-                    return '?';
-            }
+            this.connection.SendKey(pressed, (uint)vncKey, update: true);
         }
 
         private void KeyboardExpandoTapped(object sender, TappedRoutedEventArgs e)

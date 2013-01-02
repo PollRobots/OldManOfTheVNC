@@ -1,0 +1,4 @@
+﻿# available keyboards, first is the default.
+# Name,Definition
+US,ms-appx:///Assets/us.csv
+UK,ms-appx:///Assets/uk.csv

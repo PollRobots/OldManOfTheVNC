@@ -15,6 +15,7 @@
 namespace OldManOfTheVncMetro
 {
     using System;
+    using System.Collections.Generic;
     using System.Globalization;
     using System.IO;
     using System.Threading.Tasks;
@@ -27,14 +28,102 @@ namespace OldManOfTheVncMetro
 
     public sealed partial class Keyboard : UserControl
     {
+        private const string KeyboardLayouts = "ms-appx:///Assets/keyboards.txt";
+
+        private Dictionary<string, Uri> knownKeyboardLayouts = new Dictionary<string, Uri>();
+
         private bool isShifted;
+        private Dictionary<int, KeyInfo> allKeys;
 
         public Keyboard()
         {
             this.InitializeComponent();
 
-            Style style = this.Resources["KeyButton"] as Style;
-            Task.Run(async () => await LoadKeyboard(new Uri("ms-appx:///Assets/American.csv"), style));
+            Task.Run(async () => await FindKeyboards());
+        }
+
+        private string currentLayout;
+
+        public string CurrentLayout
+        {
+            get { return this.currentLayout; }
+            set 
+            {
+                Uri uri;
+
+                if (this.knownKeyboardLayouts.TryGetValue(value, out uri))
+                {
+                    this.currentLayout = value;
+                    Style style = this.Resources["KeyButton"] as Style;
+                    this.MainGrid.Children.Clear();
+                    Task.Run(async () => await LoadKeyboard(uri, style));
+                }
+            }
+        }
+
+        public IEnumerable<string> AvailableLayouts
+        {
+            get
+            {
+                return this.knownKeyboardLayouts.Keys;
+            }
+        }
+        
+
+        public VncKey LookupKey(bool isShifted, int scancode)
+        {
+            KeyInfo info;
+
+            if (!this.allKeys.TryGetValue(scancode, out info))
+            {
+                return VncKey.Unknown;
+            }
+
+            if (isShifted && info.HasShiftCode)
+            {
+                return info.ShiftCode;
+            }
+
+            return info.Code;
+        }
+
+        private async Task FindKeyboards()
+        {
+            var defaultName = string.Empty;
+            var file = await StorageFile.GetFileFromApplicationUriAsync(new Uri(KeyboardLayouts));
+            using (var stream = await file.OpenStreamForReadAsync())
+            {
+                var textReader = (TextReader)new StreamReader(stream);
+                string line;
+                var first = true;
+                Dictionary<string, Uri> layouts = new Dictionary<string, Uri>();
+                while (null != (line = await textReader.ReadLineAsync()))
+                {
+                    if (string.IsNullOrWhiteSpace(line) ||
+                        line.StartsWith("#"))
+                    {
+                        continue;
+                    }
+
+                    var elements = line.Split(new[] { ',' }, 2);
+                    if (elements.Length != 2)
+                    {
+                        continue;
+                    }
+
+                    if (first == true)
+                    {
+                        defaultName = elements[0];
+                        first = false;
+                    }
+
+                    layouts[elements[0]] = new Uri(elements[1]);
+                }
+
+                this.knownKeyboardLayouts = layouts;
+            }
+
+            this.Invoke(() => this.CurrentLayout = defaultName);
         }
 
         private async Task LoadKeyboard(Uri uri, Style style)
@@ -44,26 +133,30 @@ namespace OldManOfTheVncMetro
             {
                 var textReader = (TextReader)new StreamReader(stream);
                 string line;
+                Dictionary<int, KeyInfo> allkeys = new Dictionary<int, KeyInfo>();
                 while (null != (line = await textReader.ReadLineAsync()))
                 {
-                    if (line.StartsWith("#"))
+                    if (string.IsNullOrWhiteSpace(line) ||
+                        line.StartsWith("#"))
                     {
                         continue;
                     }
 
                     var elements = line.Split(',');
+                    int scancode;
                     int row, col, span;
                     string label, shiftLabel;
                     int code, shiftCode;
 
-                    if (!int.TryParse(elements[0], out row) ||
-                        !int.TryParse(elements[1], out col) ||
-                        !int.TryParse(elements[2], out span) ||
-                        !int.TryParse(elements[4], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out code))
+                    if (!int.TryParse(elements[0], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out scancode) ||
+                        !int.TryParse(elements[1], out row) ||
+                        !int.TryParse(elements[2], out col) ||
+                        !int.TryParse(elements[3], out span) ||
+                        !int.TryParse(elements[5], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out code))
                     {
                         continue;
                     }
-                    label = elements[3];
+                    label = elements[4];
                     if (label == "#comma#")
                     {
                         label = ",";
@@ -71,17 +164,19 @@ namespace OldManOfTheVncMetro
 
                     KeyInfo info;
 
-                    if (elements.Length >= 7 &&
-                        !string.IsNullOrWhiteSpace(elements[5]) &&
-                        int.TryParse(elements[6], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out shiftCode))
+                    if (elements.Length >= 8 &&
+                        !string.IsNullOrWhiteSpace(elements[6]) &&
+                        int.TryParse(elements[7], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out shiftCode))
                     {
-                        shiftLabel = elements[5];
-                        info = new KeyInfo(label, code, shiftLabel, shiftCode);
+                        shiftLabel = elements[6];
+                        info = new KeyInfo(scancode, label, code, shiftLabel, shiftCode);
                     }
                     else
                     {
-                        info = new KeyInfo(label, code);
+                        info = new KeyInfo(scancode, label, code);
                     }
+
+                    allkeys[scancode] = info;
 
                     Invoke(() =>
                     {
@@ -101,13 +196,16 @@ namespace OldManOfTheVncMetro
                         this.MainGrid.Children.Add(button);
                     });
                 }
+
+                this.allKeys = allkeys;
             }
         }
 
         private sealed class KeyInfo
         {
-            public KeyInfo(string label, int code, string shiftLabel = null, int shiftCode = -1)
+            public KeyInfo(int scancode, string label, int code, string shiftLabel = null, int shiftCode = -1)
             {
+                this.Scancode = scancode;
                 this.Label = label;
                 this.Code = (VncKey)code;
                 this.ShiftLabel = shiftLabel;
@@ -115,6 +213,7 @@ namespace OldManOfTheVncMetro
                 this.IsPressed = false;
             }
 
+            public int Scancode { get; private set; }
             public string Label { get; private set; }
             public VncKey Code { get; private set; }
             public string ShiftLabel { get; private set; }
