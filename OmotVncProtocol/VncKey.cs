@@ -21,6 +21,9 @@ namespace PollRobots.OmotVncProtocol
     /// <summary>The key codes used by the VNC protocol</summary>
     public enum VncKey
     {
+        /// <summary>Represents an unknown key</summary>
+        Unknown = 0,
+
         /// <summary>The backspace key</summary>
         BackSpace = 0xFF08,
 
