@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -31,6 +32,13 @@ namespace OldManOfTheVncMetro
             Task.Run(async () =>
             {
                 string selectedLayout = await Settings.GetLocalSetting("KeyboardLayout");
+                string opacityString = await Settings.GetLocalSetting("KeyboardOpacity", "50");
+                string toggle = await Settings.GetLocalSetting("KeyboardToggleModifierKeys");
+                double opacity;
+                if (!double.TryParse(opacityString, NumberStyles.Float, CultureInfo.InvariantCulture, out opacity))
+                {
+                    opacity = 50;
+                }
 
                 this.Invoke(() =>
                 {
@@ -47,6 +55,9 @@ namespace OldManOfTheVncMetro
                             this.CurrentLayout.SelectedItem = item;
                         }
                     }
+
+                    this.Opacity.Value = opacity;
+                    this.ToggleModifierKeys.IsOn = toggle == "Toggle";
                 });
             });
         }
@@ -84,6 +95,24 @@ namespace OldManOfTheVncMetro
             {
                 this.keyboard.CurrentLayout = layout;
                 Settings.SetLocalSetting("KeyboardLayout", layout);
+            }
+        }
+
+        private void OpacityValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+        {
+            if (this.keyboard != null)
+            {
+                this.keyboard.Opacity = this.Opacity.Value / 100;
+                Settings.SetLocalSetting("KeyboardOpacity", this.Opacity.Value.ToString(CultureInfo.InvariantCulture));
+            }
+        }
+
+        private void ToggleModifierKeysToggled(object sender, RoutedEventArgs e)
+        {
+            if (this.keyboard != null)
+            {
+                this.keyboard.ToggleModifierKeys = this.ToggleModifierKeys.IsOn;
+                Settings.SetLocalSetting("KeyboardToggleModifierKeys", this.ToggleModifierKeys.IsOn ? "Toggle" : "Off");
             }
         }
     }

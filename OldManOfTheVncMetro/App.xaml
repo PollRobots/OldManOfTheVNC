@@ -1,7 +1,8 @@
 ﻿<Application x:Class="OldManOfTheVncMetro.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="using:OldManOfTheVncMetro">
+             xmlns:local="using:OldManOfTheVncMetro"
+             RequestedTheme="Light">
     <!--
     Copyright 2012 Paul C. Roberts
     
@@ -19,6 +20,9 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Common/StandardStyles.xaml"/>
+                <ResourceDictionary>
+                    <SolidColorBrush x:Key="OmotVncBackColor" Color="#70A" />
+                </ResourceDictionary>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

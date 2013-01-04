@@ -205,6 +205,7 @@ namespace PollRobots.OmotVncProtocol
             using (var old = this.readStream)
             {
                 this.readStream = null;
+                this.ConnectionState = OmotVncProtocol.ConnectionState.Disconnected;
             }
         }
 
@@ -565,7 +566,7 @@ namespace PollRobots.OmotVncProtocol
 
                 if (securityResult != 0)
                 {
-                    await this.ProcessConnectionError("Sending password failed");
+                    await this.ProcessConnectionError("Invalid password");
                     return;
                 }
             }

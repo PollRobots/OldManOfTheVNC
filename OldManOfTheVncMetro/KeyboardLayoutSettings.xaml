@@ -5,8 +5,9 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             d:DesignHeight="300"
-             d:DesignWidth="400">
+             d:DesignHeight="600"
+             d:DesignWidth="346">
+    
     <UserControl.Resources>
         <Style x:Key="SettingsBackButtonStyle" TargetType="Button">
             <Setter Property="MinWidth" Value="0"/>
@@ -104,6 +105,12 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="ItemLabel" TargetType="TextBlock" BasedOn="{StaticResource BasicTextStyle}">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="Black"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
     </UserControl.Resources>
 
     <Border BorderBrush="{StaticResource ComboBoxItemSelectedPointerOverBackgroundThemeBrush}" BorderThickness="1,0,0,0">
@@ -113,18 +120,32 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <Grid Background="{StaticResource ComboBoxItemSelectedPointerOverBackgroundThemeBrush}">
+            <Grid Background="{StaticResource OmotVncBackColor}">
                 <StackPanel Orientation="Horizontal" Margin="40,32,17,13">
                     <Button Click="BackClicked" Margin="0,3,0,0" Style="{StaticResource SettingsBackButtonStyle}"/>
-                    <TextBlock Margin="10,0,0,0" FontFamily="Segoe UI" FontWeight="SemiLight" FontSize="24.66667" Text="Keyboard Layout" Foreground="White"/>
+                    <TextBlock Margin="10,0,0,0" FontFamily="Segoe UI" FontWeight="SemiLight" FontSize="24.66667" Text="Keyboard Settings" Foreground="White"/>
                 </StackPanel>
             </Grid>
 
             <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="1">
                 <Grid Margin="40,33,40,39" VerticalAlignment="Top">
                     <StackPanel>
-                        <TextBlock FontWeight="Bold" Text="Layout" Style="{StaticResource BasicTextStyle}" HorizontalAlignment="Left" Foreground="{StaticResource ApplicationPageBackgroundThemeBrush}"/>
-                        <ComboBox Margin="0,7,0,0" Name="CurrentLayout" SelectionChanged="CurrentLayoutSelectionChanged"/>
+                        <StackPanel>
+                            <TextBlock Text="Layout" Style="{StaticResource ItemLabel}"/>
+                            <ComboBox Margin="0,7,0,0" Name="CurrentLayout" SelectionChanged="CurrentLayoutSelectionChanged"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,20,0,0">
+                            <TextBlock Text="Visibility" Style="{StaticResource ItemLabel}"/>
+                            <Slider Minimum="10" Maximum="90" Value="50" Name="Opacity" ValueChanged="OpacityValueChanged"/>
+                            <Grid Margin="0,-20,0,0" IsHitTestVisible="False">
+                                <TextBlock Text="Faint" HorizontalAlignment="Left" Foreground="Black"/>
+                                <TextBlock Text="Opaque" HorizontalAlignment="Right" Foreground="Black"/>
+                            </Grid>
+                        </StackPanel>
+                        <StackPanel Margin="0,20,0,0">
+                            <TextBlock Text="Toggle modifier keys" Style="{StaticResource ItemLabel}"/>
+                            <ToggleSwitch Name="ToggleModifierKeys" Toggled="ToggleModifierKeysToggled" />
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
 

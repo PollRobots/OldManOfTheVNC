@@ -117,6 +117,9 @@ namespace PollRobots.OmotVncProtocol
         /// <summary>The right control key</summary>
         ControlRight = 0xFFE4,
 
+        /// <summery>The Caps Lock key</summery>
+        CapsLock = 0xFFE5,
+
         /// <summary>The left meta key</summary>
         MetaLeft = 0xFFE7,
 

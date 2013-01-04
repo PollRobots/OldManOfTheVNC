@@ -29,7 +29,7 @@
         </Storyboard>
     </Page.Resources>
 
-    <Grid Background="{StaticResource ApplicationPageBackgroundThemeBrush}" Name="LayoutRoot" KeyUp="HandleKey" KeyDown="HandleKey">
+    <Grid Background="Black" Name="LayoutRoot" KeyUp="HandleKey" KeyDown="HandleKey">
             <ContentControl IsTabStop="True" Name="FocusCarrier">
                 <Image Name="FrameBuffer" Stretch="Fill" IsHitTestVisible="True" 
                PointerMoved="FrameBufferPointerMoved" PointerPressed="FrameBufferPointerMoved" PointerReleased="FrameBufferPointerMoved"
@@ -51,42 +51,67 @@
             </Canvas>
         </Canvas>
         <!-- connect panel -->
-        <Grid Name="ConnectPanel" Opacity="1" Background="#8000" KeyUp="ConnectPanelKeyUp">
-            <Grid VerticalAlignment="Center" Background="{StaticResource ComboBoxItemSelectedPointerOverBackgroundThemeBrush}">
-                <ProgressBar VerticalAlignment="Top" HorizontalAlignment="Stretch" Height="10" IsIndeterminate="True" Name="Connecting" Visibility="Collapsed"/>
-                <Grid HorizontalAlignment="Center" Margin="10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition/>
-                        <RowDefinition/>
-                        <RowDefinition/>
-                        <RowDefinition/>
-                        <RowDefinition/>
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition/>
-                        <ColumnDefinition/>
-                        <ColumnDefinition/>
-                    </Grid.ColumnDefinitions>
+        <Grid Name="ConnectPanel" Opacity="1" Background="#8000" KeyUp="ConnectPanelKeyUp" Visibility="Visible">
+            <Border VerticalAlignment="Center" Background="White" BorderBrush="{StaticResource OmotVncBackColor}" BorderThickness="0,15,0,5">
+                <Grid VerticalAlignment="Center">
+                    <ProgressBar VerticalAlignment="Top" HorizontalAlignment="Stretch" Height="10" IsIndeterminate="True" Name="Connecting" Visibility="Collapsed"/>
+                    <Grid HorizontalAlignment="Center" Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/>
+                            <ColumnDefinition/>
+                            <ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Server" VerticalAlignment="Center" Style="{StaticResource ItemTextStyle}" Margin="20,10" />
-                    <TextBox Grid.Row="0" Grid.Column="1" Text="" VerticalAlignment="Center" Width="200" Name="Server" />
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Server" VerticalAlignment="Center" Style="{StaticResource ItemTextStyle}" Margin="20,10" />
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="" VerticalAlignment="Center" Width="200" Name="Server" />
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Port" VerticalAlignment="Center" Style="{StaticResource ItemTextStyle}" Margin="20,10" />
-                    <TextBox Grid.Row="1" Grid.Column="1" Text="5900" VerticalAlignment="Center" Width="50" HorizontalAlignment="Left" Name="Port"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Port" VerticalAlignment="Center" Style="{StaticResource ItemTextStyle}" Margin="20,10" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="5900" VerticalAlignment="Center" Width="50" HorizontalAlignment="Left" Name="Port"/>
 
-                    <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Grid.RowSpan="2" Background="{StaticResource ComboBoxItemSelectedPointerOverBackgroundThemeBrush}"
+                        <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Grid.RowSpan="2" Background="{StaticResource ComboBoxItemSelectedPointerOverBackgroundThemeBrush}"
                             Name="PasswordRequired" Visibility="Collapsed">
-                        <TextBlock VerticalAlignment="Bottom" TextAlignment="Center" Margin="20" Style="{StaticResource SubheaderTextStyle}"
-                                   Text="This Server requires a password."/>
-                    </Border>
+                            <TextBlock VerticalAlignment="Bottom" TextAlignment="Center" Margin="20" Style="{StaticResource SubheaderTextStyle}"
+                                   Text="This Server requires a password." />
+                        </Border>
 
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Password" VerticalAlignment="Center" Style="{StaticResource ItemTextStyle}" Margin="20,10" />
-                    <PasswordBox Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Width="200" Name="Password" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Password" VerticalAlignment="Center" Style="{StaticResource ItemTextStyle}" Margin="20,10" />
+                        <PasswordBox Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Width="200" Name="Password"/>
 
-                    <Button Grid.Row="3" Grid.Column="2" Content="Connect" Margin="20,10" Click="ClickConnect" Name="ConnectButton"/>
-                    <Button Grid.Row="3" Grid.Column="2" Content="SendPassword" Margin="20,10" Name="SendPassword" Visibility="Collapsed"/>
+                        <Button Grid.Row="3" Grid.Column="2" Content="Connect" Margin="20,10" Click="ClickConnect" Name="ConnectButton"/>
+                        <Button Grid.Row="3" Grid.Column="2" Content="SendPassword" Margin="20,10" Name="SendPassword" Visibility="Collapsed"/>
+                    </Grid>
                 </Grid>
-            </Grid>
+            </Border>
         </Grid>
+        <!-- Exception panel -->
+        <Border Name="ExceptionPanel" Background="White" VerticalAlignment="Center" Visibility="Collapsed"
+                BorderThickness="0,15,0,5" BorderBrush="{StaticResource OmotVncBackColor}">
+            <StackPanel Margin="100,20">
+                <TextBlock Text="Error" Style="{StaticResource TitleTextStyle}" Margin="0,0,0,10"/> 
+                <TextBlock Name="ExceptionMessage" Text="{}{Exception Message}" TextWrapping="Wrap" Style="{StaticResource ItemTextStyle}"
+                           Margin="0,5" />
+                <TextBlock Name="InnerExceptionMessage" Text="{}{InnerException Message}" TextWrapping="Wrap" Style="{StaticResource ItemTextStyle}"
+                           Margin="0,5" />
+                <Button HorizontalAlignment="Right" Content="OK" Margin="0,5,0,0" Click="ExceptionOkClicked"/>
+            </StackPanel>
+        </Border>
     </Grid>
+    
+    <Page.BottomAppBar>
+        <AppBar>
+            <Grid>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Name="Refresh" Style="{StaticResource RefreshAppBarButtonStyle}" Click="ClickRefresh"/>
+                    <Button Name="Hangup" Style="{StaticResource HangUpAppBarButtonStyle}" Click="ClickHangup"/>
+                </StackPanel>
+            </Grid>
+        </AppBar>
+    </Page.BottomAppBar>
 </Page>

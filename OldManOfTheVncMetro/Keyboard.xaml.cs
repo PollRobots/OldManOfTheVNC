@@ -32,7 +32,14 @@ namespace OldManOfTheVncMetro
 
         private Dictionary<string, Uri> knownKeyboardLayouts = new Dictionary<string, Uri>();
 
-        private bool isShifted;
+        private bool isCapsLockEngaged;
+        private bool isShiftDown;
+        private bool isAltGrDown;
+
+        private bool usesAltGr;
+
+        private readonly List<Button> toggledButtons = new List<Button>();
+
         private Dictionary<int, KeyInfo> allKeys;
 
         public Keyboard()
@@ -81,15 +88,23 @@ namespace OldManOfTheVncMetro
 
             if (isShifted && info.HasShiftCode)
             {
-                return info.ShiftCode;
+                return info[SymbolIndex.Shifted].Code;
             }
 
-            return info.Code;
+            return info[SymbolIndex.Normal].Code;
         }
 
         private async Task FindKeyboards()
         {
-            var defaultName = string.Empty;
+            this.ToggleModifierKeys = "Toggle" == await Settings.GetLocalSetting("KeyboardToggleModifierKeys");
+            var opacityString = await Settings.GetLocalSetting("KeyboardOpacity", "50");
+            double opacity;
+            if (!double.TryParse(opacityString, NumberStyles.Float, CultureInfo.InvariantCulture, out opacity))
+            {
+                opacity = 50;
+            }
+
+            var defaultName = await Settings.GetLocalSetting("KeyboardLayout");
             var file = await StorageFile.GetFileFromApplicationUriAsync(new Uri(KeyboardLayouts));
             using (var stream = await file.OpenStreamForReadAsync())
             {
@@ -113,7 +128,11 @@ namespace OldManOfTheVncMetro
 
                     if (first == true)
                     {
-                        defaultName = elements[0];
+                        if (string.IsNullOrEmpty(defaultName))
+                        {
+                            defaultName = elements[0];
+                        }
+
                         first = false;
                     }
 
@@ -123,7 +142,11 @@ namespace OldManOfTheVncMetro
                 this.knownKeyboardLayouts = layouts;
             }
 
-            this.Invoke(() => this.CurrentLayout = defaultName);
+            this.Invoke(() =>
+                {
+                    this.CurrentLayout = defaultName;
+                    this.Opacity = opacity / 100;
+                });
         }
 
         private async Task LoadKeyboard(Uri uri, Style style)
@@ -134,6 +157,7 @@ namespace OldManOfTheVncMetro
                 var textReader = (TextReader)new StreamReader(stream);
                 string line;
                 Dictionary<int, KeyInfo> allkeys = new Dictionary<int, KeyInfo>();
+                var hasAltGrKey = false;
                 while (null != (line = await textReader.ReadLineAsync()))
                 {
                     if (string.IsNullOrWhiteSpace(line) ||
@@ -145,43 +169,50 @@ namespace OldManOfTheVncMetro
                     var elements = line.Split(',');
                     int scancode;
                     int row, col, span;
-                    string label, shiftLabel;
-                    int code, shiftCode;
 
                     if (!int.TryParse(elements[0], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out scancode) ||
                         !int.TryParse(elements[1], out row) ||
                         !int.TryParse(elements[2], out col) ||
-                        !int.TryParse(elements[3], out span) ||
-                        !int.TryParse(elements[5], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out code))
+                        !int.TryParse(elements[3], out span))
                     {
                         continue;
                     }
-                    label = elements[4];
-                    if (label == "#comma#")
+
+                    var offset = 4;
+                    var symbols = new List<KeySymbol>();
+                    while (elements.Length > offset + 1)
                     {
-                        label = ",";
+                        int code;
+                        if (!int.TryParse(elements[offset + 1], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out code) ||
+                            string.IsNullOrEmpty(elements[offset]))
+                        {
+                            break;
+                        }
+                        var label = elements[offset];
+                        var isDead = false;
+                        if (label.StartsWith("#dead#"))
+                        {
+                            isDead = true;
+                            label = label.Substring(6);
+                        }
+                        if (label == "#comma#")
+                        {
+                            label = ",";
+                        }
+
+                        symbols.Add(new KeySymbol(label, code, isDead));
+                        offset += 2;
                     }
 
-                    KeyInfo info;
+                    var info = new KeyInfo(scancode, symbols.ToArray());
 
-                    if (elements.Length >= 8 &&
-                        !string.IsNullOrWhiteSpace(elements[6]) &&
-                        int.TryParse(elements[7], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out shiftCode))
-                    {
-                        shiftLabel = elements[6];
-                        info = new KeyInfo(scancode, label, code, shiftLabel, shiftCode);
-                    }
-                    else
-                    {
-                        info = new KeyInfo(scancode, label, code);
-                    }
-
+                    hasAltGrKey |= info.HasAltGrCode;
                     allkeys[scancode] = info;
 
                     Invoke(() =>
                     {
                         var button = new Button();
-                        button.Content = label;
+                        button.Content = info[SymbolIndex.Normal].Label;
                         Grid.SetColumn(button, col);
                         Grid.SetRow(button, row);
                         Grid.SetColumnSpan(button, span);
@@ -198,35 +229,84 @@ namespace OldManOfTheVncMetro
                 }
 
                 this.allKeys = allkeys;
+                this.usesAltGr = hasAltGrKey;
             }
+        }
+
+        private sealed class KeySymbol
+        {
+            public KeySymbol(string label, int code, bool isDead = false)
+            {
+                this.IsDead = isDead;
+                this.Label = label;
+                this.Code = (VncKey)code;
+            }
+
+            public bool IsDead { get; private set; }
+            public string Label { get; private set; }
+            public VncKey Code { get; private set; }
+        }
+
+        private enum SymbolIndex
+        {
+            Normal = 0,
+            Shifted = 1,
+            AltGr = 2,
+            AltGrShifted = 3
         }
 
         private sealed class KeyInfo
         {
-            public KeyInfo(int scancode, string label, int code, string shiftLabel = null, int shiftCode = -1)
+            public KeyInfo(int scancode, params KeySymbol[] symbols)
             {
                 this.Scancode = scancode;
-                this.Label = label;
-                this.Code = (VncKey)code;
-                this.ShiftLabel = shiftLabel;
-                this.ShiftCode = (VncKey)shiftCode;
+                this.Symbols = symbols;
                 this.IsPressed = false;
+
+                var code = symbols[0].Code;
+                this.IsModifier = 
+                    code == VncKey.ShiftLeft || code == VncKey.ShiftRight ||
+                    code == VncKey.ControlLeft || code == VncKey.ControlRight ||
+                    code == VncKey.AltLeft || code == VncKey.AltRight ||
+                    code == VncKey.MetaLeft || code == VncKey.MetaRight;
             }
 
             public int Scancode { get; private set; }
-            public string Label { get; private set; }
-            public VncKey Code { get; private set; }
-            public string ShiftLabel { get; private set; }
-            public VncKey ShiftCode { get; private set; }
+            public KeySymbol[] Symbols{ get; private set; }
 
+            public bool IsModifier { get; private set; }
             public bool IsPressed { get; set; }
             public VncKey PressedCode { get; set; }
+
+            public KeySymbol this[SymbolIndex index]
+            {
+                get
+                {
+                    return this.Symbols[(int)index];
+                }
+            }
 
             public bool HasShiftCode
             {
                 get
                 {
-                    return this.ShiftCode > 0 && this.ShiftLabel != null;
+                    return this.Symbols.Length > (int)SymbolIndex.Shifted;
+                }
+            }
+
+            public bool HasAltGrCode
+            {
+                get
+                {
+                    return this.Symbols.Length > (int)SymbolIndex.AltGr;
+                }
+            }
+
+            public bool HasAltGrShiftCode
+            {
+                get
+                {
+                    return this.Symbols.Length > (int)SymbolIndex.AltGrShifted;
                 }
             }
         }
@@ -254,33 +334,92 @@ namespace OldManOfTheVncMetro
                 return;
             }
 
+            if (this.toggledButtons.Contains(button))
+            {
+                this.toggledButtons.Remove(button);
+                return;
+            }
+
             var info = button.Tag as KeyInfo;
             if (info == null)
             {
                 return;
             }
-            VncKey key;
 
-            if (this.isShifted && info.HasShiftCode) {
-                key = info.ShiftCode;
-            }
-            else{
-                key = info.Code;
-            }
-            this.RaiseKeyChange(key, true);
-            info.PressedCode = key;
-            info.IsPressed = true;
+            KeySymbol key;
 
-            if (info.Code == VncKey.ShiftLeft ||
-                info.Code == VncKey.ShiftRight)
+            if (!info.HasShiftCode)
             {
-                ShiftButtons(isShifted: true);
+                key = info[SymbolIndex.Normal];
+            }
+            else if (this.isAltGrDown && this.isShiftDown)
+            {
+                if (!info.HasAltGrShiftCode)
+                {
+                    return;
+                }
+                key = info[SymbolIndex.AltGrShifted];
+            }
+            else if (this.isAltGrDown)
+            {
+                if (!info.HasAltGrCode)
+                {
+                    return;
+                }
+
+                key = info[SymbolIndex.AltGr];
+            }
+            else if ((this.isShiftDown ^ this.isCapsLockEngaged)) 
+            {
+                key = info[SymbolIndex.Shifted];
+            }
+            else
+            {
+                key = info[SymbolIndex.Normal];
+            }
+
+            info.PressedCode = key.Code;
+            info.IsPressed = true;
+            if (!key.IsDead)
+            {
+                this.RaiseKeyChange(key.Code, info.IsPressed);
+            }
+
+            if (key.Code == VncKey.ShiftLeft ||
+                key.Code == VncKey.ShiftRight)
+            {
+                isShiftDown = true;
+                ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
+            }
+            else if (key.Code == VncKey.CapsLock)
+            {
+                this.isCapsLockEngaged = !this.isCapsLockEngaged;
+                ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
+            }
+            else if (key.Code == VncKey.AltRight && this.usesAltGr)
+            {
+                this.isAltGrDown = true;
+                ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
+            }
+
+            if (this.ToggleModifierKeys && info.IsModifier)
+            {
+                this.toggledButtons.Add(button);
+            }
+            else
+            {
+                while (this.toggledButtons.Count > 0)
+                {
+                    var end = this.toggledButtons.Count - 1;
+                    var untoggle = this.toggledButtons[end];
+                    this.toggledButtons.RemoveAt(end);
+                    this.ButtonReleased(untoggle, e);
+                }
             }
         }
 
-        private void ShiftButtons(bool isShifted)
+        private void ShiftButtons(bool isShifted, bool isAltGr)
         {
-            this.isShifted = isShifted;
             foreach (var item in this.MainGrid.Children)
             {
                 var button = item as Button;
@@ -295,7 +434,22 @@ namespace OldManOfTheVncMetro
                     continue;
                 }
 
-                button.Content = isShifted ? info.ShiftLabel : info.Label;
+                if (isShifted && isAltGr)
+                {
+                    button.Content = info.HasAltGrShiftCode ? info[SymbolIndex.AltGrShifted].Label : string.Empty;
+                }
+                else if (isShifted)
+                {
+                    button.Content = info[SymbolIndex.Shifted].Label;
+                }
+                else if (isAltGr)
+                {
+                    button.Content = info.HasAltGrCode ? info[SymbolIndex.AltGr].Label : string.Empty;
+                }
+                else
+                {
+                    button.Content = info[SymbolIndex.Normal].Label;
+                }
             }
         }
 
@@ -303,6 +457,11 @@ namespace OldManOfTheVncMetro
         {
             var button = sender as Button;
             if (button == null)
+            {
+                return;
+            }
+
+            if (this.toggledButtons.Contains(button))
             {
                 return;
             }
@@ -315,14 +474,25 @@ namespace OldManOfTheVncMetro
             }
 
             info.IsPressed = false;
-            this.RaiseKeyChange((VncKey)info.PressedCode, false);
-
-            if (info.Code == VncKey.ShiftLeft ||
-                info.Code == VncKey.ShiftRight)
+            if (!this.usesAltGr || info[SymbolIndex.Normal].Code != VncKey.AltRight)
             {
-                ShiftButtons(isShifted: false);
+                this.RaiseKeyChange((VncKey)info.PressedCode, false);
+            }
+
+            if (info[SymbolIndex.Normal].Code == VncKey.ShiftLeft ||
+                info[SymbolIndex.Normal].Code == VncKey.ShiftRight)
+            {
+                isShiftDown = false;
+                ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
+            }
+            else if (info[SymbolIndex.Normal].Code == VncKey.AltRight && this.usesAltGr)
+            {
+                this.isAltGrDown = false;
+                ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
             }
         }
+
+        public bool ToggleModifierKeys { get; set; }
     }
 
     public sealed class KeyEventArgs : EventArgs
