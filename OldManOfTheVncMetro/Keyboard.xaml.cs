@@ -28,7 +28,7 @@ namespace OldManOfTheVncMetro
 
     public sealed partial class Keyboard : UserControl
     {
-        private const string KeyboardLayouts = "ms-appx:///Assets/keyboards.txt";
+        private const string KeyboardLayouts = "ms-appx:///Assets/keyboards.ini";
 
         private Dictionary<string, Uri> knownKeyboardLayouts = new Dictionary<string, Uri>();
 
@@ -63,7 +63,6 @@ namespace OldManOfTheVncMetro
                 {
                     this.currentLayout = value;
                     Style style = this.Resources["KeyButton"] as Style;
-                    this.MainGrid.Children.Clear();
                     Task.Run(async () => await LoadKeyboard(uri, style));
                 }
             }
@@ -116,12 +115,13 @@ namespace OldManOfTheVncMetro
                 while (null != (line = await textReader.ReadLineAsync()))
                 {
                     if (string.IsNullOrWhiteSpace(line) ||
-                        line.StartsWith("#"))
+                        line.StartsWith("#") ||
+                        line.StartsWith("["))
                     {
                         continue;
                     }
 
-                    var elements = line.Split(new[] { ',' }, 2);
+                    var elements = line.Split(new[] { '=' }, 2);
                     if (elements.Length != 2)
                     {
                         continue;
@@ -158,6 +158,7 @@ namespace OldManOfTheVncMetro
                 var textReader = (TextReader)new StreamReader(stream);
                 string line;
                 Dictionary<int, KeyInfo> allkeys = new Dictionary<int, KeyInfo>();
+                var keysToAdd = new List<Tuple<KeyInfo, int, int, int>>();
                 var hasAltGrKey = false;
                 var readKeys = false;
                 var readDeadKeys = false;
@@ -191,8 +192,29 @@ namespace OldManOfTheVncMetro
                         hasAltGrKey |= info.HasAltGrCode;
                         allkeys[info.Scancode] = info;
 
-                        Invoke(() =>
+                        keysToAdd.Add(Tuple.Create(info, row, col, span));
+                    }
+
+                    else if (readDeadKeys)
+                    {
+                        ReadDeadKeyDefinition(line, allkeys);
+                    }
+                }
+
+                this.allKeys = allkeys;
+                this.usesAltGr = hasAltGrKey;
+
+                Invoke(() =>
+                    {
+                        this.MainGrid.Children.Clear();
+
+                        foreach (var item in keysToAdd)
                         {
+                            var info = item.Item1;
+                            var row = item.Item2;
+                            var col = item.Item3;
+                            var span = item.Item4;
+
                             var button = new Button();
                             button.Content = info[SymbolIndex.Normal].Label;
                             Grid.SetColumn(button, col);
@@ -207,16 +229,8 @@ namespace OldManOfTheVncMetro
                             button.AddHandler(UIElement.PointerExitedEvent, (PointerEventHandler)this.ButtonReleased, true);
 
                             this.MainGrid.Children.Add(button);
-                        });
-                    }
-                    else if (readDeadKeys)
-                    {
-                        ReadDeadKeyDefinition(line, allkeys);
-                    }
-                }
-
-                this.allKeys = allkeys;
-                this.usesAltGr = hasAltGrKey;
+                        }
+                    });
             }
         }
 
