@@ -130,6 +130,7 @@
     <Content Include="Assets\keyboards.txt" />
     <Content Include="Assets\us.csv" />
     <Content Include="Assets\uk.csv" />
+    <Content Include="Assets\de.csv" />
     <None Include="OldManOfTheVncMetro_TemporaryKey.pfx" />
   </ItemGroup>
   <ItemGroup>

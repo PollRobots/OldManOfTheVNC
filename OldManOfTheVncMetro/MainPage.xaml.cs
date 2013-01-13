@@ -85,17 +85,22 @@ namespace OldManOfTheVncMetro
         void settingsPane_CommandsRequested(SettingsPane sender, SettingsPaneCommandsRequestedEventArgs args)
         {
             var commands = args.Request.ApplicationCommands;
-            commands.Add(new SettingsCommand("KayboardLayout", "Keyboard Layout", new UICommandInvokedHandler(this.ChooseKeyboardLayout)));
+            commands.Add(new SettingsCommand("KayboardSettings", "Keyboard Settings", new UICommandInvokedHandler(this.ShowKeyboardSettings)));
         }
 
-        void ChooseKeyboardLayout(IUICommand command)
+        void ShowKeyboardSettings(IUICommand command)
+        {
+            ShowSettingsPopup(346, () => new KeyboardLayoutSettings(this.Keyboard));
+        }
+
+        void ShowSettingsPopup(int width, Func<Control> getSettingsPane)
         {
             settingsPopup = new Popup();
             settingsPopup.Closed += SettingsPopupClosed;
             Window.Current.Activated += OnActivatedBySettings;
             settingsPopup.IsLightDismissEnabled = true;
 
-            settingsPopup.Width = 300;
+            settingsPopup.Width = width;
             settingsPopup.Height = Window.Current.Bounds.Height;
 
             settingsPopup.ChildTransitions = new TransitionCollection();
@@ -107,13 +112,13 @@ namespace OldManOfTheVncMetro
             });
 
 
-            var settings = new KeyboardLayoutSettings(this.Keyboard);
-            settings.Width = 300;
+            var settings = getSettingsPane();
+            settings.Width = width;
             settings.Height = Window.Current.Bounds.Height;
             settingsPopup.Child = settings;
 
             settingsPopup.SetValue(Canvas.LeftProperty, SettingsPane.Edge == SettingsEdgeLocation.Right ?
-                Window.Current.Bounds.Width - 300 : 0);
+                Window.Current.Bounds.Width - width : 0);
             settingsPopup.SetValue(Canvas.TopProperty, 0);
 
             settingsPopup.IsOpen = true;
@@ -175,7 +180,7 @@ namespace OldManOfTheVncMetro
                         await this.connection.SendPassword(password);
                     }
 
-                    var name = await this.connection.Initialize(true);
+                    var name = await this.connection.Initialize(shareDesktop: true);
 
                     var connectionInfo = this.connection.GetConnectionInfo();
 
@@ -189,12 +194,11 @@ namespace OldManOfTheVncMetro
                         this.StartFrameBuffer(connectionInfo);
                     });
                 }
-                catch
+                catch (Exception exception)
                 {
                     this.Invoke(() =>
                     {
-                        this.OnStateChange(ConnectionState.Disconnected);
-                        this.connection = null;
+                        this.OnException(exception);
                     });
                 }
             });
@@ -307,6 +311,17 @@ namespace OldManOfTheVncMetro
 
         void OnException(Exception exception)
         {
+            this.ExceptionMessage.Text = exception.Message;
+            if (exception.InnerException != null)
+            {
+                this.InnerExceptionMessage.Text = exception.InnerException.Message;
+                this.InnerExceptionMessage.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                this.InnerExceptionMessage.Visibility = Visibility.Collapsed;
+            }
+            this.ExceptionPanel.Visibility = Visibility.Visible;
         }
 
         void StartFrameBuffer(ConnectionInfo connectionInfo)
@@ -551,6 +566,29 @@ namespace OldManOfTheVncMetro
                     }
                 }
             }
+        }
+
+        private void ClickRefresh(object sender, RoutedEventArgs e)
+        {
+            if (this.connection != null && this.isConnected)
+            {
+                this.connection.Update(true);
+            }
+        }
+
+        private void ClickHangup(object sender, RoutedEventArgs e)
+        {
+            if (this.connection != null && this.isConnected)
+            {
+                this.connection.Shutdown();
+            }
+        }
+
+        private void ExceptionOkClicked(object sender, RoutedEventArgs e)
+        {
+            this.ExceptionPanel.Visibility = Visibility.Collapsed;
+            this.OnStateChange(ConnectionState.Disconnected);
+            this.connection = null;
         }
     }
 }

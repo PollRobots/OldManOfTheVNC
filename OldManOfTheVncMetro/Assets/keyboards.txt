@@ -2,3 +2,4 @@
 # Name,Definition
 US,ms-appx:///Assets/us.csv
 UK,ms-appx:///Assets/uk.csv
+DE,ms-appx:///Assets/de.csv
