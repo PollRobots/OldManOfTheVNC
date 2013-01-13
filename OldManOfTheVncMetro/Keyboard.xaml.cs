@@ -39,6 +39,7 @@ namespace OldManOfTheVncMetro
         private bool usesAltGr;
 
         private readonly List<Button> toggledButtons = new List<Button>();
+        private Dictionary<char, char> deadKeyLookup = null;
 
         private Dictionary<int, KeyInfo> allKeys;
 
@@ -158,6 +159,8 @@ namespace OldManOfTheVncMetro
                 string line;
                 Dictionary<int, KeyInfo> allkeys = new Dictionary<int, KeyInfo>();
                 var hasAltGrKey = false;
+                var readKeys = false;
+                var readDeadKeys = false;
                 while (null != (line = await textReader.ReadLineAsync()))
                 {
                     if (string.IsNullOrWhiteSpace(line) ||
@@ -166,70 +169,149 @@ namespace OldManOfTheVncMetro
                         continue;
                     }
 
-                    var elements = line.Split(',');
-                    int scancode;
-                    int row, col, span;
-
-                    if (!int.TryParse(elements[0], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out scancode) ||
-                        !int.TryParse(elements[1], out row) ||
-                        !int.TryParse(elements[2], out col) ||
-                        !int.TryParse(elements[3], out span))
+                    if (line == "[Keys]")
                     {
-                        continue;
+                        readKeys = true;
+                        readDeadKeys = false;
                     }
-
-                    var offset = 4;
-                    var symbols = new List<KeySymbol>();
-                    while (elements.Length > offset + 1)
+                    else if (line == "[DeadKeys]")
                     {
-                        int code;
-                        if (!int.TryParse(elements[offset + 1], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out code) ||
-                            string.IsNullOrEmpty(elements[offset]))
-                        {
-                            break;
-                        }
-                        var label = elements[offset];
-                        var isDead = false;
-                        if (label.StartsWith("#dead#"))
-                        {
-                            isDead = true;
-                            label = label.Substring(6);
-                        }
-                        if (label == "#comma#")
-                        {
-                            label = ",";
-                        }
-
-                        symbols.Add(new KeySymbol(label, code, isDead));
-                        offset += 2;
+                        readKeys = false;
+                        readDeadKeys = true;
                     }
-
-                    var info = new KeyInfo(scancode, symbols.ToArray());
-
-                    hasAltGrKey |= info.HasAltGrCode;
-                    allkeys[scancode] = info;
-
-                    Invoke(() =>
+                    else if (readKeys)
                     {
-                        var button = new Button();
-                        button.Content = info[SymbolIndex.Normal].Label;
-                        Grid.SetColumn(button, col);
-                        Grid.SetRow(button, row);
-                        Grid.SetColumnSpan(button, span);
-                        button.Style = style;
-                        button.Tag = info;
-                        button.IsTabStop = false;
+                        int row, col, span;
+                        var info = ReadKeyDefinition(line, out row, out col, out span);
+                        if (info == null)
+                        {
+                            continue;
+                        }
 
-                        button.AddHandler(UIElement.PointerPressedEvent, (PointerEventHandler)this.ButtonPressed, true);
-                        button.AddHandler(UIElement.PointerReleasedEvent, (PointerEventHandler)this.ButtonReleased, true);
-                        button.AddHandler(UIElement.PointerExitedEvent, (PointerEventHandler)this.ButtonReleased, true);
+                        hasAltGrKey |= info.HasAltGrCode;
+                        allkeys[info.Scancode] = info;
 
-                        this.MainGrid.Children.Add(button);
-                    });
+                        Invoke(() =>
+                        {
+                            var button = new Button();
+                            button.Content = info[SymbolIndex.Normal].Label;
+                            Grid.SetColumn(button, col);
+                            Grid.SetRow(button, row);
+                            Grid.SetColumnSpan(button, span);
+                            button.Style = style;
+                            button.Tag = info;
+                            button.IsTabStop = false;
+
+                            button.AddHandler(UIElement.PointerPressedEvent, (PointerEventHandler)this.ButtonPressed, true);
+                            button.AddHandler(UIElement.PointerReleasedEvent, (PointerEventHandler)this.ButtonReleased, true);
+                            button.AddHandler(UIElement.PointerExitedEvent, (PointerEventHandler)this.ButtonReleased, true);
+
+                            this.MainGrid.Children.Add(button);
+                        });
+                    }
+                    else if (readDeadKeys)
+                    {
+                        ReadDeadKeyDefinition(line, allkeys);
+                    }
                 }
 
                 this.allKeys = allkeys;
                 this.usesAltGr = hasAltGrKey;
+            }
+        }
+
+        private KeyInfo ReadKeyDefinition(string line, out int row, out int col, out int span)
+        {
+            row = col = span = 0;
+            int equals = line.IndexOf('=');
+            if (equals < 1)
+            {
+                return null;
+            }
+
+            var first = line.Substring(0, equals);
+            int scancode;
+            var elements = line.Substring(equals + 1).Split(',');
+
+            if (!int.TryParse(first, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out scancode) ||
+                !int.TryParse(elements[0], out row) ||
+                !int.TryParse(elements[1], out col) ||
+                !int.TryParse(elements[2], out span))
+            {
+                return null;
+            }
+
+            var offset = 3;
+            var symbols = new List<KeySymbol>();
+            while (elements.Length > offset + 1)
+            {
+                int code;
+                if (!int.TryParse(elements[offset + 1], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out code) ||
+                    string.IsNullOrEmpty(elements[offset]))
+                {
+                    break;
+                }
+                var label = elements[offset];
+                var isDead = false;
+                if (label.StartsWith("#dead#"))
+                {
+                    isDead = true;
+                    label = label.Substring(6);
+                }
+                if (label == "#comma#")
+                {
+                    label = ",";
+                }
+
+                symbols.Add(new KeySymbol(label, code, isDead));
+                offset += 2;
+            }
+
+            return new KeyInfo(scancode, symbols.ToArray());
+        }
+
+        private void ReadDeadKeyDefinition(string line, Dictionary<int, KeyInfo> keys)
+        {
+            int equals = line.IndexOf('=');
+            if (equals < 1)
+            {
+                return;
+            }
+
+            var first = line.Substring(0, equals);
+            var elements = line.Substring(equals + 1).Split(',');
+
+            int scancode;
+            int keycode;
+            KeyInfo keyInfo;
+            if (!int.TryParse(first, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out scancode) ||
+                !int.TryParse(elements[0], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out keycode) ||
+                !keys.TryGetValue(scancode, out keyInfo))
+            {
+                return;
+            }
+
+            var offset = 1;
+            var lookup = new Dictionary<char, char>();
+            while (elements.Length > offset + 1)
+            {
+                var from = elements[offset++];
+                var to = elements[offset++];
+                if (from.Length != 1 || to.Length != 1)
+                {
+                    continue;
+                }
+
+                lookup[from[0]] = to[0];
+            }
+
+            foreach (var symbol in keyInfo.Symbols)
+            {
+                if (symbol.Code == (VncKey)keycode)
+                {
+                    symbol.DeadKeyLookup = lookup;
+                    return;
+                }
             }
         }
 
@@ -245,6 +327,7 @@ namespace OldManOfTheVncMetro
             public bool IsDead { get; private set; }
             public string Label { get; private set; }
             public VncKey Code { get; private set; }
+            public Dictionary<char, char> DeadKeyLookup { get; set; }
         }
 
         private enum SymbolIndex
@@ -382,7 +465,25 @@ namespace OldManOfTheVncMetro
             info.IsPressed = true;
             if (!key.IsDead)
             {
-                this.RaiseKeyChange(key.Code, info.IsPressed);
+                if (this.deadKeyLookup != null)
+                {
+                    var from = char.ConvertFromUtf32((int)key.Code)[0];
+                    char to;
+                    if (this.deadKeyLookup.TryGetValue(from, out to))
+                    {
+                        info.PressedCode = (VncKey)to;
+                    }
+                    if (!info.IsModifier)
+                    {
+                        this.deadKeyLookup = null;
+                    }
+                }
+
+                this.RaiseKeyChange(info.PressedCode, info.IsPressed);
+            }
+            else if (key.DeadKeyLookup != null)
+            {
+                this.deadKeyLookup = key.DeadKeyLookup;
             }
 
             if (key.Code == VncKey.ShiftLeft ||
