@@ -1,4 +1,4 @@
-﻿# A DE T2 keyboard layout
+﻿# A DE T1 keyboard layout
 [Keys]
 # ScanCode=Row,Column,Width,Label,Code,ShiftLabel,ShiftCode,AltGrLabel,AltGrCode
 01=0,0,2,Esc,FF1B,,
