@@ -136,7 +136,7 @@
                         </StackPanel>
                         <StackPanel Margin="0,20,0,0">
                             <TextBlock Text="Visibility" Style="{StaticResource ItemLabel}"/>
-                            <Slider Minimum="10" Maximum="90" Value="50" Name="Opacity" ValueChanged="OpacityValueChanged"/>
+                            <Slider Minimum="10" Maximum="90" Value="50" Name="KeyboardOpacity" ValueChanged="KeyboardOpacityValueChanged"/>
                             <Grid Margin="0,-20,0,0" IsHitTestVisible="False">
                                 <TextBlock Text="Faint" HorizontalAlignment="Left" Foreground="Black"/>
                                 <TextBlock Text="Opaque" HorizontalAlignment="Right" Foreground="Black"/>

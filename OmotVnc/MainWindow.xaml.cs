@@ -64,7 +64,7 @@ namespace OmotVnc
         private ConnectionDialog connectionDialog;
         
         /// <summary>Port used to communicate with protocol service</summary>
-        private AConnectionOperations connectionPort;
+        private ConnectionOperations connectionPort;
 
         /// <summary>The Tcp Client connection to the VNC server</summary>
         private TcpClient client;
@@ -432,7 +432,7 @@ namespace OmotVnc
         {
             if (this.connectionPort != null)
             {
-                this.connectionPort.Update(true);
+                this.connectionPort.UpdateAsync(true);
             }
         }
 
@@ -444,7 +444,7 @@ namespace OmotVnc
                 {
                     if (this.connectionPort != null)
                     {
-                        this.connectionPort.Shutdown().Wait();
+                        this.connectionPort.ShutdownAsync().Wait();
                         this.connectionPort = null;
                     }
                 });
@@ -510,7 +510,7 @@ namespace OmotVnc
 
             try
             {
-                requiresPassword = await this.connectionPort.Handshake();
+                requiresPassword = await this.connectionPort.HandshakeAsync();
             }
             catch (Exception exception)
             {
@@ -524,7 +524,7 @@ namespace OmotVnc
 
                 try
                 {
-                    await this.connectionPort.SendPassword(password);
+                    await this.connectionPort.SendPasswordAsync(password);
                 }
                 catch (Exception exception)
                 {
@@ -539,7 +539,7 @@ namespace OmotVnc
 
             try
             {
-                name = await this.connectionPort.Initialize(true);
+                name = await this.connectionPort.InitializeAsync(true);
                 this.connectionPort.BellEvent += (s, e) => this.DoInvoke(this.HandleBell);
             }
             catch (Exception exception)
@@ -617,8 +617,8 @@ namespace OmotVnc
                          PixelFormats.Bgr32,
                          null);
                      
-                     this.connectionPort.Start();
-                     this.connectionPort.Update(true);
+                     this.connectionPort.StartAsync();
+                     this.connectionPort.UpdateAsync(true);
                      
                      this.Title = info.Name + " - Old Man of the VNC";
                      
@@ -642,7 +642,7 @@ namespace OmotVnc
             }
             else
             {
-                this.connectionPort.Update(false);
+                this.connectionPort.UpdateAsync(false);
             }
         }
 
@@ -797,7 +797,7 @@ namespace OmotVnc
                 (e.MiddleButton == MouseButtonState.Pressed ? 2 : 0) |
                 (e.RightButton == MouseButtonState.Pressed ? 4 : 0);
             
-            this.connectionPort.SetPointer(buttons, (int)point.X, (int)point.Y);
+            this.connectionPort.SetPointerAsync(buttons, (int)point.X, (int)point.Y);
         }
 
         /// <summary>Handles key up and down events<summary>
@@ -932,8 +932,8 @@ namespace OmotVnc
             }
 
             e.Handled = true;
-            this.connectionPort.SendKey(e.IsDown, key, true);
-            this.connectionPort.Update(false);        
+            this.connectionPort.SendKeyAsync(e.IsDown, key, true);
+            this.connectionPort.UpdateAsync(false);        
         }
 
         private char TranslateKey(bool isShifted, Key key)
@@ -1024,11 +1024,11 @@ namespace OmotVnc
 
             foreach (var character in e.Text)
             {
-                this.connectionPort.SendKey(true, (uint)character, false);
-                this.connectionPort.SendKey(false, (uint)character, false);
+                this.connectionPort.SendKeyAsync(true, (uint)character, false);
+                this.connectionPort.SendKeyAsync(false, (uint)character, false);
             }
 
-            this.connectionPort.Update(false);
+            this.connectionPort.UpdateAsync(false);
         }
     }
 }

@@ -28,21 +28,21 @@ namespace PollRobots.OmotVncProtocol
     using System.Threading;
     using System.Threading.Tasks;
 #if NETFX_CORE
+    using Windows.Networking.Sockets;
     using Windows.Security.Cryptography;
     using Windows.Security.Cryptography.Core;
-    using Windows.Networking.Sockets;
 #endif
 
     /// <summary>The service that manages a connection to a VNC server.</summary>
-    public sealed class Connection : AConnectionOperations, IDisposable
+    public sealed class Connection : ConnectionOperations, IDisposable
     {
         /// <summary>The length of the protocol version packet.</summary>
         private const int ProtocolVersionLength = 12;
 
-        /// <summary>The first 4 characters of the protocol versiopn packet.</summary>
+        /// <summary>The first 4 characters of the protocol version packet.</summary>
         private const string ProtocolVersionStart = "RFB ";
 
-        /// <summary>The protocoal major version supported.</summary>
+        /// <summary>The protocol major version supported.</summary>
         private const int ProtocolMajorVersion = 3;
 
         /// <summary>The protocol minor version supported.</summary>
@@ -51,12 +51,15 @@ namespace PollRobots.OmotVncProtocol
         /// <summary>The client protocol version packet.</summary>
         private const string ClientProtocolVersion = "RFB 003.008\n";
 
+        /// <summary>The length of the security nonce.</summary>
+        private const int SecurityNonceLength = 16;
+
+        /// <summary>Length of the server initialize header.</summary>
+        private const int ServerInitHeaderLength = 24;
+
         /// <summary>The supported security protocols</summary>
         /// <remarks>2 means requires password, 1 means no password required</remarks>
         private static readonly byte[] SecurityProtocols = { 2, 1 };
-
-        /// <summary>The length of the security nonce.</summary>
-        private const int SecurityNonceLength = 16;
 
         /// <summary>The default timeout when talking to a server</summary>
         /// <remarks>THis presupposes that the service is close in network 
@@ -65,10 +68,7 @@ namespace PollRobots.OmotVncProtocol
 
         /// <summary>Lookup table for reversing nibble values (used as part of
         /// the password encryption)</summary>
-        private static readonly byte[] ReverseNibble = { 0x0, 0x8, 0x4, 0xC, 0x2, 0xA, 0x6, 0xE, 0x1, 0x9, 0x5, 0xD, 0x3 , 0xB, 0x7, 0xF };
-
-        /// <summary>Length of the server init header.</summary>
-        private const int ServerInitHeaderLength = 24;
+        private static readonly byte[] ReverseNibble = { 0x0, 0x8, 0x4, 0xC, 0x2, 0xA, 0x6, 0xE, 0x1, 0x9, 0x5, 0xD, 0x3, 0xB, 0x7, 0xF };
 
         /// <summary>Lock used for exclusive async access to the stream.</summary>
         private ExclusiveLock exclusiveLock = new ExclusiveLock();
@@ -88,17 +88,29 @@ namespace PollRobots.OmotVncProtocol
         /// <summary>The current connection state.</summary>
         private ConnectionState state;
 
+        /// <summary>The action to take on a rectangle update.</summary>
         private Action<Rectangle> onRectangle;
 
+        /// <summary>The action to take on a state change.</summary>
         private Action<ConnectionState> onConnectionStateChange;
 
+        /// <summary>The action to take on an exception.</summary>
         private Action<Exception> onException;
+
+        /// <summary>The number of pending update responses.</summary>
+        private int pendingUpdateResponse;
+
+        /// <summary>The last time a set pointer message was sent.</summary>
+        private DateTime lastSetPointer;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Connection"/> class.
         /// </summary>
-        /// <param name="stream">The connection stream.</param>
-        /// <param name="taskQueue">The CCR task queue for this service</param>
+        /// <param name="readStream">The stream for reading.</param>
+        /// <param name="writeStream">The stream for writing.</param>
+        /// <param name="rectangleAction">The action to take when a rectangle is received.</param>
+        /// <param name="connectionStateChangeAction">The action to take on a state change.</param>
+        /// <param name="exceptionAction">The action to take on an exception.</param>
         private Connection(Stream readStream, Stream writeStream, Action<Rectangle> rectangleAction, Action<ConnectionState> connectionStateChangeAction, Action<Exception> exceptionAction)
         {
             this.readStream = readStream;
@@ -172,12 +184,15 @@ namespace PollRobots.OmotVncProtocol
 #if NETFX_CORE
         /// <summary>Create an instance of the <see cref="Connection"/> service.
         /// </summary>
-        /// <param name="stream">The connection stream.</param>
-        /// <returns>The port used to communicate with the service.</returns>
-        public static AConnectionOperations CreateFromStreamSocket(StreamSocket streamSocket, Action<Rectangle> onRectangle, Action<ConnectionState> onStateChange, Action<Exception> onException)
+        /// <param name="streamSocket">The connection stream.</param>
+        /// <param name="onRectangle">The action to take when a rectangle is received.</param>
+        /// <param name="onStateChange">The action to take on a state change.</param>
+        /// <param name="onException">The action to take on an exception.</param>
+        /// <returns>The operations instance used to communicate with the service.</returns>
+        public static ConnectionOperations CreateFromStreamSocket(StreamSocket streamSocket, Action<Rectangle> onRectangle, Action<ConnectionState> onStateChange, Action<Exception> onException)
         {
             var readStream = streamSocket.InputStream.AsStreamForRead();
-            var writeStream =streamSocket.OutputStream.AsStreamForWrite();
+            var writeStream = streamSocket.OutputStream.AsStreamForWrite();
             var connection = new Connection(readStream, writeStream, onRectangle, onStateChange, onException);
 
             connection.Init();
@@ -188,8 +203,11 @@ namespace PollRobots.OmotVncProtocol
         /// <summary>Create an instance of the <see cref="Connection"/> service.
         /// </summary>
         /// <param name="stream">The connection stream.</param>
-        /// <returns>The port used to communicate with the service.</returns>
-        public static AConnectionOperations CreateFromStream(Stream stream, Action<Rectangle> onRectangle, Action<ConnectionState> onStateChange, Action<Exception> onException)
+        /// <param name="onRectangle">The action to take when a rectangle is received.</param>
+        /// <param name="onStateChange">The action to take on a state change.</param>
+        /// <param name="onException">The action to take on an exception.</param>
+        /// <returns>The operations instance used to communicate with the service.</returns>
+        public static ConnectionOperations CreateFromStream(Stream stream, Action<Rectangle> onRectangle, Action<ConnectionState> onStateChange, Action<Exception> onException)
         {
             var connection = new Connection(stream, stream, onRectangle, onStateChange, onException);
 
@@ -210,7 +228,8 @@ namespace PollRobots.OmotVncProtocol
         }
 
         /// <summary>Handles the shutdown message.</summary>
-        public override async Task Shutdown()
+        /// <returns>An async task.</returns>
+        public override async Task ShutdownAsync()
         {
             try
             {
@@ -222,13 +241,14 @@ namespace PollRobots.OmotVncProtocol
             }
             catch (Exception e)
             {
-                onException(e);
+                this.onException(e);
             }
         }
 
         /// <summary>Handles the start message; this starts the process of
         /// waiting for server packets.</summary>
-        public override async Task Start()
+        /// <returns>An async task.</returns>
+        public override async Task StartAsync()
         {
             try
             {
@@ -242,24 +262,23 @@ namespace PollRobots.OmotVncProtocol
             }
             catch (Exception e)
             {
-                onException(e);
+                this.onException(e);
                 throw;
             }
 
             await Task.Yield();
-            Task.Run(() => this.WaitForServerPacket());
+            var ignored = Task.Run(() => this.WaitForServerPacket());
         }
-
-        int pendingUpdateResponse;
 
         /// <summary>Handles the update message; this sends an update request
         /// to the server.</summary>
-        /// <param name="update">The update request.</param>
-        public override async Task Update(bool refresh)
+        /// <param name="refresh">Does this update report a complete refresh.</param>
+        /// <returns>An async task.</returns>
+        public override async Task UpdateAsync(bool refresh)
         {
             using (await this.exclusiveLock.Enter())
             {
-                if (pendingUpdateResponse > 0 && !refresh)
+                if (this.pendingUpdateResponse > 0 && !refresh)
                 {
                     return;
                 }
@@ -279,7 +298,7 @@ namespace PollRobots.OmotVncProtocol
                     using (var cancellation = new CancellationTokenSource())
                     {
                         cancellation.CancelAfter(DefaultTimeout);
-                        Interlocked.Increment(ref pendingUpdateResponse);
+                        Interlocked.Increment(ref this.pendingUpdateResponse);
                         await this.writeStream.WriteAsync(packet, 0, packet.Length, cancellation.Token);
                         await this.writeStream.FlushAsync();
                     }
@@ -291,8 +310,6 @@ namespace PollRobots.OmotVncProtocol
             }
         }
 
-        DateTime last;
-
         /// <summary>Handles the set pointer message, this sends the pointer 
         /// position and button state to the server.
         /// </summary>
@@ -301,10 +318,12 @@ namespace PollRobots.OmotVncProtocol
         /// <param name="buttons">The current button state.</param>
         /// <param name="x">The pointer x coordinate.</param>
         /// <param name="y">The pointer y coordinate.</param>
-        public override async Task SetPointer(int buttons, int x, int y, bool isHighPriority)
+        /// <param name="isHighPriority">Indicates whether this request is high-priority. High priority requests are never ignored.</param>
+        /// <returns>An async task.</returns>
+        public override async Task SetPointerAsync(int buttons, int x, int y, bool isHighPriority)
         {
             var now = DateTime.UtcNow;
-            if (!isHighPriority && (now - last).TotalMilliseconds < 50)
+            if (!isHighPriority && (now - this.lastSetPointer).TotalMilliseconds < 50)
             {
                 return;
             }
@@ -325,12 +344,12 @@ namespace PollRobots.OmotVncProtocol
                     using (var cancellation = new CancellationTokenSource())
                     {
                         cancellation.CancelAfter(DefaultTimeout);
-                        last = now;
+                        this.lastSetPointer = now;
                         await this.writeStream.WriteAsync(packet, 0, packet.Length, cancellation.Token);
                         await this.writeStream.FlushAsync();
                     }
 
-                    Task.Run(() => this.Update(false));
+                    var ignored = Task.Run(() => this.UpdateAsync(false));
                 }
                 catch (Exception e)
                 {
@@ -345,8 +364,9 @@ namespace PollRobots.OmotVncProtocol
         /// update.</remarks>
         /// <param name="isDown">Indicates whether the key is down.</param>
         /// <param name="key">The key that changed.</param>
-        /// <param name="update">Indicates whether this should trigger an 
-        public override async Task SendKey(bool isDown, uint key, bool update)
+        /// <param name="update">Indicates whether this should trigger an update</param>
+        /// <returns>An async task.</returns>
+        public override async Task SendKeyAsync(bool isDown, uint key, bool update)
         {
             using (await this.exclusiveLock.Enter())
             {
@@ -366,7 +386,7 @@ namespace PollRobots.OmotVncProtocol
                     await this.writeStream.FlushAsync();
                     if (update)
                     {
-                        Task.Run(() => this.Update(false));
+                        var ignore = Task.Run(() => this.UpdateAsync(false));
                     }
                 }
                 catch (Exception e)
@@ -377,7 +397,7 @@ namespace PollRobots.OmotVncProtocol
         }
 
         /// <summary>Handles a get connection info message.</summary>
-        /// <param name="get">The get connection info message.</param>
+        /// <returns>The current connection info.</returns>
         public override ConnectionInfo GetConnectionInfo()
         {
             return new ConnectionInfo
@@ -388,10 +408,9 @@ namespace PollRobots.OmotVncProtocol
             };
         }
 
-        /// <summary>Performs the handshaking processs.</summary>
-        /// <param name="resultPort">The port the result is posted to.</param>
-        /// <returns>A CCR task enumerator</returns>
-        public override async Task<bool> Handshake()
+        /// <summary>Performs the handshaking process.</summary>
+        /// <returns>A value indicating whether a password is required.</returns>
+        public override async Task<bool> HandshakeAsync()
         {
             using (await this.exclusiveLock.Enter())
             {
@@ -493,9 +512,8 @@ namespace PollRobots.OmotVncProtocol
 
         /// <summary>Send password to the server</summary>
         /// <param name="password">The password to send</param>
-        /// <param name="resultPort">The port that results are posted back to.</param>
-        /// <returns>A CCR task enumerator</returns>
-        public override async Task SendPassword(string password)
+        /// <returns>An async task.</returns>
+        public override async Task SendPasswordAsync(string password)
         {
             using (await this.exclusiveLock.Enter())
             {
@@ -574,9 +592,8 @@ namespace PollRobots.OmotVncProtocol
 
         /// <summary>Initialize the connection.</summary>
         /// <param name="shareDesktop">Indicates whether the desktop is shared.</param>
-        /// <param name="resultPort">The port that results are posted back to.</param>
-        /// <returns>A CCR task enumerator</returns>
-        public override async Task<string> Initialize(bool shareDesktop)
+        /// <returns>An async task</returns>
+        public override async Task<string> InitializeAsync(bool shareDesktop)
         {
             using (await this.exclusiveLock.Enter())
             {
@@ -616,7 +633,7 @@ namespace PollRobots.OmotVncProtocol
                 using (var cancellation = new CancellationTokenSource())
                 {
                     cancellation.CancelAfter(DefaultTimeout);
-                    this.ReadPacketAsync(packet, cancellation.Token);
+                    var ignored = this.ReadPacketAsync(packet, cancellation.Token);
                 }
 
                 this.Name = Encoding.UTF8.GetString(packet, 0, packet.Length);
@@ -687,7 +704,7 @@ namespace PollRobots.OmotVncProtocol
                 {
                     case ServerMessage.FramebufferUpdate:
                         await this.ReadFramebufferUpdate();
-                        Interlocked.Decrement(ref pendingUpdateResponse);
+                        Interlocked.Decrement(ref this.pendingUpdateResponse);
                         break;
 
                     case ServerMessage.SetColourMapEntries:
@@ -728,16 +745,26 @@ namespace PollRobots.OmotVncProtocol
             }
             catch (Exception e)
             {
-                Disconnected(e);
+                this.Disconnected(e);
             }
         }
 
+        /// <summary>Reads a packet from the read stream.</summary>
+        /// <param name="buffer">The buffer to fill from the network</param>
+        /// <param name="cancelToken">A cancellation token.</param>
+        /// <returns>An async task.</returns>
         private async Task ReadPacketAsync(byte[] buffer, CancellationToken cancelToken)
         {
             await this.ReadPacketAsync(buffer, 0, buffer.Length, cancelToken);
         }
 
-        private async Task ReadPacketAsync(byte[] buffer, int offset, int length,CancellationToken cancelToken)
+        /// <summary>Reads a packet from the read stream.</summary>
+        /// <param name="buffer">The buffer to fill from the network.</param>
+        /// <param name="offset">The offset in the buffer to fill from.</param>
+        /// <param name="length">The number of bytes to fetch.</param>
+        /// <param name="cancelToken">A cancellation token.</param>
+        /// <returns>An async task.</returns>
+        private async Task ReadPacketAsync(byte[] buffer, int offset, int length, CancellationToken cancelToken)
         {
             var remaining = length;
             while (remaining > 0)

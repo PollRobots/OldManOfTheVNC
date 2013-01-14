@@ -1,4 +1,5 @@
-﻿//-------------------------------------------------------------------------------------------------
+﻿// -----------------------------------------------------------------------------
+// <copyright file="Keyboard.xaml.cs" company="Paul C. Roberts">
 //  Copyright 2012 Paul C. Roberts
 //
 //  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file 
@@ -10,7 +11,8 @@
 //  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
 //  either express or implied. See the License for the specific language governing permissions and 
 //  limitations under the License.
-//-------------------------------------------------------------------------------------------------
+// </copyright>
+// -----------------------------------------------------------------------------
 
 namespace OldManOfTheVncMetro
 {
@@ -26,35 +28,78 @@ namespace OldManOfTheVncMetro
     using Windows.UI.Xaml.Controls;
     using Windows.UI.Xaml.Input;
 
+    /// <summary>Implements a touch screen keyboard</summary>
     public sealed partial class Keyboard : UserControl
     {
+        /// <summary>The uri of the asset that contains the list of built-in keyboard layouts.</summary>
         private const string KeyboardLayouts = "ms-appx:///Assets/keyboards.txt";
 
-        private Dictionary<string, Uri> knownKeyboardLayouts = new Dictionary<string, Uri>();
+        /// <summary>The known keyboard layouts.</summary>
+        private readonly Dictionary<string, Uri> knownKeyboardLayouts = new Dictionary<string, Uri>();
 
+        /// <summary>The list of currently toggled modifier keys</summary>
+        private readonly List<Button> toggledButtons = new List<Button>();
+
+        /// <summary>Indicates whether CapsLock is engaged.</summary>
         private bool isCapsLockEngaged;
+
+        /// <summary>Indicates whether a Shift key is down.</summary>
         private bool isShiftDown;
+
+        /// <summary>Indicates whether an AltGr key is down.</summary>
         private bool isAltGrDown;
 
+        /// <summary>Indicates whether the current keyboard layout uses AltGr logic.</summary>
         private bool usesAltGr;
 
-        private readonly List<Button> toggledButtons = new List<Button>();
+        /// <summary>The current lookup dictionary for a dead key, this is only populated if the last
+        /// key pressed was a dead key - typically used to create accented characters.</summary>
         private Dictionary<char, char> deadKeyLookup = null;
 
+        /// <summary>Used to lookup scan-codes to keys.</summary>
         private Dictionary<int, KeyInfo> allKeys;
 
+        /// <summary>The current keyboard layout name.</summary>
+        private string currentLayout;
+
+        /// <summary>Initializes a new instance of the <see cref="Keyboard"/> class.</summary>
         public Keyboard()
         {
             this.InitializeComponent();
 
-            Task.Run(async () => await FindKeyboards());
+            Task.Run(async () => await this.FindKeyboards());
         }
 
-        private string currentLayout;
+        /// <summary>Raised when a key state changes.</summary>
+        public event EventHandler<KeyEventArgs> KeyChange;
 
+        /// <summary>Used to index key definitions for the Shift and AltGr modifier keys.</summary>
+        private enum SymbolIndex
+        {
+            /// <summary>The key's default symbol. Every key has this defined.</summary>
+            Normal = 0,
+
+            /// <summary>The key's shifted symbol.</summary>
+            Shifted = 1,
+
+            /// <summary>The key's AltGr symbol.</summary>
+            AltGr = 2,
+
+            /// <summary>The key's Shifted AltGr symbol.</summary>
+            AltGrShifted = 3
+        }
+
+        /// <summary>Gets or sets a value indicating whether modifier keys are toggled when pressed.</summary>
+        public bool ToggleModifierKeys { get; set; }
+
+        /// <summary>Gets or sets the name of the current keyboard layout.</summary>
         public string CurrentLayout
         {
-            get { return this.currentLayout; }
+            get 
+            { 
+                return this.currentLayout; 
+            }
+
             set 
             {
                 Uri uri;
@@ -64,11 +109,12 @@ namespace OldManOfTheVncMetro
                     this.currentLayout = value;
                     Style style = this.Resources["KeyButton"] as Style;
                     this.MainGrid.Children.Clear();
-                    Task.Run(async () => await LoadKeyboard(uri, style));
+                    Task.Run(async () => await this.LoadKeyboard(uri, style));
                 }
             }
         }
 
+        /// <summary>Gets the set of available keyboard layouts.</summary>
         public IEnumerable<string> AvailableLayouts
         {
             get
@@ -77,7 +123,10 @@ namespace OldManOfTheVncMetro
             }
         }
         
-
+        /// <summary>Lookup the key code associated withe a scan-code.</summary>
+        /// <param name="isShifted">Indicates whether the shift key is currently pressed.</param>
+        /// <param name="scancode">The scan-code to look up.</param>
+        /// <returns>The character associated with the scan-code for the current keyboard layout.</returns>
         public VncKey LookupKey(bool isShifted, int scancode)
         {
             KeyInfo info;
@@ -95,24 +144,25 @@ namespace OldManOfTheVncMetro
             return info[SymbolIndex.Normal].Code;
         }
 
+        /// <summary>Enumerates all the available keyboards.</summary>
+        /// <returns>An async task.</returns>
         private async Task FindKeyboards()
         {
-            this.ToggleModifierKeys = "Toggle" == await Settings.GetLocalSetting("KeyboardToggleModifierKeys");
-            var opacityString = await Settings.GetLocalSetting("KeyboardOpacity", "50");
+            this.ToggleModifierKeys = "Toggle" == await Settings.GetLocalSettingAsync("KeyboardToggleModifierKeys");
+            var opacityString = await Settings.GetLocalSettingAsync("KeyboardOpacity", "50");
             double opacity;
             if (!double.TryParse(opacityString, NumberStyles.Float, CultureInfo.InvariantCulture, out opacity))
             {
                 opacity = 50;
             }
 
-            var defaultName = await Settings.GetLocalSetting("KeyboardLayout");
+            var defaultName = await Settings.GetLocalSettingAsync("KeyboardLayout");
             var file = await StorageFile.GetFileFromApplicationUriAsync(new Uri(KeyboardLayouts));
             using (var stream = await file.OpenStreamForReadAsync())
             {
                 var textReader = (TextReader)new StreamReader(stream);
                 string line;
                 var first = true;
-                Dictionary<string, Uri> layouts = new Dictionary<string, Uri>();
                 while (null != (line = await textReader.ReadLineAsync()))
                 {
                     if (string.IsNullOrWhiteSpace(line) ||
@@ -137,10 +187,8 @@ namespace OldManOfTheVncMetro
                         first = false;
                     }
 
-                    layouts[elements[0]] = new Uri(elements[1]);
+                    this.knownKeyboardLayouts[elements[0]] = new Uri(elements[1]);
                 }
-
-                this.knownKeyboardLayouts = layouts;
             }
 
             this.Invoke(() =>
@@ -150,6 +198,10 @@ namespace OldManOfTheVncMetro
                 });
         }
 
+        /// <summary>Load a specific keyboard from its definition file.</summary>
+        /// <param name="uri">The location of the keyboard definition file.</param>
+        /// <param name="style">The style to use for a keyboard key.</param>
+        /// <returns>An async task,</returns>
         private async Task LoadKeyboard(Uri uri, Style style)
         {
             var file = await StorageFile.GetFileFromApplicationUriAsync(uri);
@@ -182,7 +234,7 @@ namespace OldManOfTheVncMetro
                     else if (readKeys)
                     {
                         int row, col, span;
-                        var info = ReadKeyDefinition(line, out row, out col, out span);
+                        var info = this.ReadKeyDefinition(line, out row, out col, out span);
                         if (info == null)
                         {
                             continue;
@@ -191,7 +243,7 @@ namespace OldManOfTheVncMetro
                         hasAltGrKey |= info.HasAltGrCode;
                         allkeys[info.Scancode] = info;
 
-                        Invoke(() =>
+                        this.Invoke(() =>
                         {
                             var button = new Button();
                             button.Content = info[SymbolIndex.Normal].Label;
@@ -211,7 +263,7 @@ namespace OldManOfTheVncMetro
                     }
                     else if (readDeadKeys)
                     {
-                        ReadDeadKeyDefinition(line, allkeys);
+                        this.ReadDeadKeyDefinition(line, allkeys);
                     }
                 }
 
@@ -220,6 +272,12 @@ namespace OldManOfTheVncMetro
             }
         }
 
+        /// <summary>Reads a key definition from a line in the INI file that defines a keyboard.</summary>
+        /// <param name="line">The line in the file to be read.</param>
+        /// <param name="row">On success contains the grid row of the keyboard key.</param>
+        /// <param name="col">On success contains the grid column of the keyboard key.</param>
+        /// <param name="span">On success contains the grid span of the keyboard key.</param>
+        /// <returns>The <see cref="KeyInfo"/> with the key symbol definitions.</returns>
         private KeyInfo ReadKeyDefinition(string line, out int row, out int col, out int span)
         {
             row = col = span = 0;
@@ -251,6 +309,7 @@ namespace OldManOfTheVncMetro
                 {
                     break;
                 }
+
                 var label = elements[offset];
                 var isDead = false;
                 if (label.StartsWith("#dead#"))
@@ -258,6 +317,7 @@ namespace OldManOfTheVncMetro
                     isDead = true;
                     label = label.Substring(6);
                 }
+
                 if (label == "#comma#")
                 {
                     label = ",";
@@ -270,6 +330,9 @@ namespace OldManOfTheVncMetro
             return new KeyInfo(scancode, symbols.ToArray());
         }
 
+        /// <summary>Reads a dead key definition from a keyboard layout INI file.</summary>
+        /// <param name="line">The line containing the definition.</param>
+        /// <param name="keys">The keys in the current layout</param>
         private void ReadDeadKeyDefinition(string line, Dictionary<int, KeyInfo> keys)
         {
             int equals = line.IndexOf('=');
@@ -315,91 +378,16 @@ namespace OldManOfTheVncMetro
             }
         }
 
-        private sealed class KeySymbol
+        /// <summary>Invokes an action asynchronously on the UI thread.</summary>
+        /// <param name="action">The action to invoke.</param>
+        private void Invoke(Action action) 
         {
-            public KeySymbol(string label, int code, bool isDead = false)
-            {
-                this.IsDead = isDead;
-                this.Label = label;
-                this.Code = (VncKey)code;
-            }
-
-            public bool IsDead { get; private set; }
-            public string Label { get; private set; }
-            public VncKey Code { get; private set; }
-            public Dictionary<char, char> DeadKeyLookup { get; set; }
+            var ignored = this.Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () => action());
         }
 
-        private enum SymbolIndex
-        {
-            Normal = 0,
-            Shifted = 1,
-            AltGr = 2,
-            AltGrShifted = 3
-        }
-
-        private sealed class KeyInfo
-        {
-            public KeyInfo(int scancode, params KeySymbol[] symbols)
-            {
-                this.Scancode = scancode;
-                this.Symbols = symbols;
-                this.IsPressed = false;
-
-                var code = symbols[0].Code;
-                this.IsModifier = 
-                    code == VncKey.ShiftLeft || code == VncKey.ShiftRight ||
-                    code == VncKey.ControlLeft || code == VncKey.ControlRight ||
-                    code == VncKey.AltLeft || code == VncKey.AltRight ||
-                    code == VncKey.MetaLeft || code == VncKey.MetaRight;
-            }
-
-            public int Scancode { get; private set; }
-            public KeySymbol[] Symbols{ get; private set; }
-
-            public bool IsModifier { get; private set; }
-            public bool IsPressed { get; set; }
-            public VncKey PressedCode { get; set; }
-
-            public KeySymbol this[SymbolIndex index]
-            {
-                get
-                {
-                    return this.Symbols[(int)index];
-                }
-            }
-
-            public bool HasShiftCode
-            {
-                get
-                {
-                    return this.Symbols.Length > (int)SymbolIndex.Shifted;
-                }
-            }
-
-            public bool HasAltGrCode
-            {
-                get
-                {
-                    return this.Symbols.Length > (int)SymbolIndex.AltGr;
-                }
-            }
-
-            public bool HasAltGrShiftCode
-            {
-                get
-                {
-                    return this.Symbols.Length > (int)SymbolIndex.AltGrShifted;
-                }
-            }
-        }
-
-        private void Invoke(Action action) {
-            this.Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () => action());
-        }
-
-        public event EventHandler<KeyEventArgs> KeyChange;
-
+        /// <summary>Raises the <see cref="KeyChange"/> event.</summary>
+        /// <param name="key">The character code of the key whose state has changed.</param>
+        /// <param name="isPressed">Indicates if the key is pressed.</param>
         private void RaiseKeyChange(VncKey key, bool isPressed)
         {
             var handler = this.KeyChange;
@@ -409,6 +397,9 @@ namespace OldManOfTheVncMetro
             }
         }
 
+        /// <summary>Handles a button being pressed.</summary>
+        /// <param name="sender">The button that was pressed.</param>
+        /// <param name="e">The parameter is not used.</param>
         private void ButtonPressed(object sender, PointerRoutedEventArgs e)
         {
             var button = sender as Button;
@@ -441,6 +432,7 @@ namespace OldManOfTheVncMetro
                 {
                     return;
                 }
+
                 key = info[SymbolIndex.AltGrShifted];
             }
             else if (this.isAltGrDown)
@@ -452,7 +444,7 @@ namespace OldManOfTheVncMetro
 
                 key = info[SymbolIndex.AltGr];
             }
-            else if ((this.isShiftDown ^ this.isCapsLockEngaged)) 
+            else if (this.isShiftDown ^ this.isCapsLockEngaged)
             {
                 key = info[SymbolIndex.Shifted];
             }
@@ -473,6 +465,7 @@ namespace OldManOfTheVncMetro
                     {
                         info.PressedCode = (VncKey)to;
                     }
+
                     if (!info.IsModifier)
                     {
                         this.deadKeyLookup = null;
@@ -489,18 +482,18 @@ namespace OldManOfTheVncMetro
             if (key.Code == VncKey.ShiftLeft ||
                 key.Code == VncKey.ShiftRight)
             {
-                isShiftDown = true;
-                ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
+                this.isShiftDown = true;
+                this.ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
             }
             else if (key.Code == VncKey.CapsLock)
             {
                 this.isCapsLockEngaged = !this.isCapsLockEngaged;
-                ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
+                this.ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
             }
             else if (key.Code == VncKey.AltRight && this.usesAltGr)
             {
                 this.isAltGrDown = true;
-                ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
+                this.ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
             }
 
             if (this.ToggleModifierKeys && info.IsModifier)
@@ -519,6 +512,9 @@ namespace OldManOfTheVncMetro
             }
         }
 
+        /// <summary>Sets the button labels to reflect the current status of the Shift and AltGr modifier keys.</summary>
+        /// <param name="isShifted">Indicates if the Shift key is pressed.</param>
+        /// <param name="isAltGr">Indicates if the AltGr key is pressed.</param>
         private void ShiftButtons(bool isShifted, bool isAltGr)
         {
             foreach (var item in this.MainGrid.Children)
@@ -554,6 +550,9 @@ namespace OldManOfTheVncMetro
             }
         }
 
+        /// <summary>Handles a button being released or the mouse leaving the button area.</summary>
+        /// <param name="sender">The button in question.</param>
+        /// <param name="e">The parameter is not used.</param>
         private void ButtonReleased(object sender, PointerRoutedEventArgs e)
         {
             var button = sender as Button;
@@ -583,28 +582,115 @@ namespace OldManOfTheVncMetro
             if (info[SymbolIndex.Normal].Code == VncKey.ShiftLeft ||
                 info[SymbolIndex.Normal].Code == VncKey.ShiftRight)
             {
-                isShiftDown = false;
-                ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
+                this.isShiftDown = false;
+                this.ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
             }
             else if (info[SymbolIndex.Normal].Code == VncKey.AltRight && this.usesAltGr)
             {
                 this.isAltGrDown = false;
-                ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
+                this.ShiftButtons(isShifted: this.isShiftDown ^ this.isCapsLockEngaged, isAltGr: this.isAltGrDown & this.usesAltGr);
             }
         }
 
-        public bool ToggleModifierKeys { get; set; }
-    }
-
-    public sealed class KeyEventArgs : EventArgs
-    {
-        public KeyEventArgs(VncKey key, bool isPressed)
+        /// <summary>Used to represent a key definition. Each key may have between 1 and 4 of these.</summary>
+        private sealed class KeySymbol
         {
-            this.Key = key;
-            this.IsPressed = isPressed;
+            /// <summary>Initializes a new instance of the <see cref="KeySymbol"/> class.</summary>
+            /// <param name="label">The label for this key.</param>
+            /// <param name="code">The character code for this key.</param>
+            /// <param name="isDead">Indicates whether this is a dead key.</param>
+            public KeySymbol(string label, int code, bool isDead = false)
+            {
+                this.IsDead = isDead;
+                this.Label = label;
+                this.Code = (VncKey)code;
+            }
+
+            /// <summary>Gets a value indicating whether this is a dead key.</summary>
+            public bool IsDead { get; private set; }
+
+            /// <summary>Gets the label for this key.</summary>
+            public string Label { get; private set; }
+
+            /// <summary>Gets the character code for this key.</summary>
+            public VncKey Code { get; private set; }
+
+            /// <summary>Gets or sets the dead key lookup table for this key; if any.</summary>
+            public Dictionary<char, char> DeadKeyLookup { get; set; }
         }
 
-        public VncKey Key { get; private set; }
-        public bool IsPressed { get; private set; }
+        /// <summary>Represents the information about a key.</summary>
+        private sealed class KeyInfo
+        {
+            /// <summary>Initializes a new instance of the <see cref="KeyInfo"/> class.</summary>
+            /// <param name="scancode">The scan-code for this key.</param>
+            /// <param name="symbols">The symbols associated with this key.</param>
+            public KeyInfo(int scancode, params KeySymbol[] symbols)
+            {
+                this.Scancode = scancode;
+                this.Symbols = symbols;
+                this.IsPressed = false;
+
+                var code = symbols[0].Code;
+                this.IsModifier =
+                    code == VncKey.ShiftLeft || code == VncKey.ShiftRight ||
+                    code == VncKey.ControlLeft || code == VncKey.ControlRight ||
+                    code == VncKey.AltLeft || code == VncKey.AltRight ||
+                    code == VncKey.MetaLeft || code == VncKey.MetaRight;
+            }
+
+            /// <summary>Gets the scan-code for this key.</summary>
+            public int Scancode { get; private set; }
+
+            /// <summary>Gets the symbols for this key</summary>
+            public KeySymbol[] Symbols { get; private set; }
+
+            /// <summary>Gets a value indicating whether this is a modifier key.</summary>
+            public bool IsModifier { get; private set; }
+
+            /// <summary>Gets or sets a value indicating whether this key is currently pressed.</summary>
+            public bool IsPressed { get; set; }
+
+            /// <summary>Gets or sets the code that this key generated when it was pressed.</summary>
+            public VncKey PressedCode { get; set; }
+
+            /// <summary>Gets a value indicating whether this key has a symbol associated with the Shift modifier being pressed.</summary>
+            public bool HasShiftCode
+            {
+                get
+                {
+                    return this.Symbols.Length > (int)SymbolIndex.Shifted;
+                }
+            }
+
+            /// <summary>Gets a value indicating whether this key has a symbol associated with the AltGr modifier being pressed.</summary>
+            public bool HasAltGrCode
+            {
+                get
+                {
+                    return this.Symbols.Length > (int)SymbolIndex.AltGr;
+                }
+            }
+
+            /// <summary>Gets a value indicating whether this key has a symbol associated with the AltGr and Shift modifiers being pressed.</summary>
+            public bool HasAltGrShiftCode
+            {
+                get
+                {
+                    return this.Symbols.Length > (int)SymbolIndex.AltGrShifted;
+                }
+            }
+
+            /// <summary>Gets the key symbol associated with a key modifier state.</summary>
+            /// <param name="index">The key modifier state.</param>
+            /// <returns>The associated key symbol.</returns>
+            public KeySymbol this[SymbolIndex index]
+            {
+                get
+                {
+                    return this.Symbols[(int)index];
+                }
+            }
+        }
     }
 }

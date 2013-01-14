@@ -20,54 +20,61 @@ namespace PollRobots.OmotVncProtocol
     using System.Threading.Tasks;
 
     /// <summary>The operations port for the <see cref="Connection"/> service.</summary>
-    public abstract class AConnectionOperations
+    public abstract class ConnectionOperations
     {
+        /// <summary>Raised when the bell is signalled by the server.</summary>
+        public event EventHandler BellEvent;
+
         /// <summary>Gets the connection info.</summary>
         /// <returns>The result port for the request.</returns>
         public abstract ConnectionInfo GetConnectionInfo();
 
         /// <summary>Shutdown the connection.</summary>
         /// <returns>The task.</returns>
-        public abstract Task Shutdown();
+        public abstract Task ShutdownAsync();
 
         /// <summary>Posts a handshake message.</summary>
         /// <returns><c>true</c> if a password is required.</returns>
-        public abstract Task<bool> Handshake();
+        public abstract Task<bool> HandshakeAsync();
 
         /// <summary>Sends a password to the server.</summary>
         /// <param name="password">The password to send.</param>
         /// <returns>The result port for the request.</returns>
-        public abstract Task SendPassword(string password);
+        public abstract Task SendPasswordAsync(string password);
 
         /// <summary>Initializes the connection</summary>
         /// <param name="shareDesktop">Indicates whether the desktop is being
         /// shared.</param>
         /// <returns>Remote name for the connection.</returns>
-        public abstract Task<string> Initialize(bool shareDesktop);
+        public abstract Task<string> InitializeAsync(bool shareDesktop);
 
         /// <summary>Starts the active protocol</summary>
-        public abstract Task Start();
+        /// <returns>An async task.</returns>
+        public abstract Task StartAsync();
 
         /// <summary>Sends an update request.</summary>
-        /// <param name="refresh">Indicates whther the entire screen should be
+        /// <param name="refresh">Indicates whether the entire screen should be
         /// refreshed.</param>
-        public abstract Task Update(bool refresh);
+        /// <returns>An async task.</returns>
+        public abstract Task UpdateAsync(bool refresh);
 
         /// <summary>Sends the current pointer position and button state.</summary>
         /// <param name="buttons">The current button state.</param>
         /// <param name="x">The pointer x coordinate.</param>
         /// <param name="y">The pointer y coordinate.</param>
-        public abstract Task SetPointer(int buttons, int x, int y, bool isHighPriority = true);
+        /// <param name="isHighPriority">Indicates whether this request is high-priority. High priority requests are never ignored.</param>
+        /// <returns>An async task.</returns>
+        public abstract Task SetPointerAsync(int buttons, int x, int y, bool isHighPriority = true);
 
         /// <summary>Sends a keyboard key state change</summary>
         /// <param name="down">Indicates whether the key is down.</param>
         /// <param name="key">The key that changed.</param>
         /// <param name="update">Indicates whether this should trigger an 
         /// update.</param>
-        public abstract Task SendKey(bool down, uint key, bool update);
+        /// <returns>An async task.</returns>
+        public abstract Task SendKeyAsync(bool down, uint key, bool update);
 
-        public event EventHandler BellEvent;
-
+        /// <summary>Raise the bell event.</summary>
         protected void FireBell()
         {
             var handler = this.BellEvent;

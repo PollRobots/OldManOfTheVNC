@@ -18,8 +18,7 @@ namespace PollRobots.OmotVncProtocol
 {
     using System;
 
-    /// <summary>
-    /// </summary>
+    /// <summary>The pixel format of rectangle updates.</summary>
     internal sealed class PixelFormat
     {
         /// <summary>
