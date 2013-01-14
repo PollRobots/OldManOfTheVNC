@@ -74,6 +74,7 @@
 
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Port" VerticalAlignment="Center" Style="{StaticResource ItemTextStyle}" Margin="20,10" />
                         <TextBox Grid.Row="1" Grid.Column="1" Text="5900" VerticalAlignment="Center" Width="50" HorizontalAlignment="Left" Name="Port"/>
+                        <CheckBox Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right" Content="Use SSL" Name="IsSecure"/>
 
                         <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Grid.RowSpan="2" Background="{StaticResource ComboBoxItemSelectedPointerOverBackgroundThemeBrush}"
                             Name="PasswordRequired" Visibility="Collapsed">

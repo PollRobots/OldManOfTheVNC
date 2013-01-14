@@ -62,12 +62,14 @@ namespace OldManOfTheVncMetro
                 var server = await Settings.GetLocalSetting("Server");
                 var port = await Settings.GetLocalSetting("Port", "5900");
                 var password = await Settings.GetLocalSetting("Password", defaultValue: "", isEncrypted: true);
+                var isSecure = await Settings.GetLocalSetting("IsSecure", defaultValue: "False");
 
                 this.Invoke(() =>
                 {
                     this.Server.Text = server;
                     this.Port.Text = port;
                     this.Password.Password = password;
+                    this.IsSecure.IsChecked = isSecure == "True";
 
                     if (!string.IsNullOrEmpty(server))
                     {
@@ -150,6 +152,7 @@ namespace OldManOfTheVncMetro
             var server = this.Server.Text;
             var port = this.Port.Text;
             var password = this.Password.Password;
+            var isSecure = (bool)this.IsSecure.IsChecked;
 
             var client = new StreamSocket();
 
@@ -157,7 +160,9 @@ namespace OldManOfTheVncMetro
             {
                 try
                 {
-                    await client.ConnectAsync(new HostName(server), port);
+                    var host = new HostName(server);
+
+                    await client.ConnectAsync(host, port, isSecure ? SocketProtectionLevel.Ssl : SocketProtectionLevel.PlainSocket);
 
                     this.connection = Connection.CreateFromStreamSocket(
                         client,
@@ -184,6 +189,7 @@ namespace OldManOfTheVncMetro
                         Settings.SetLocalSetting("Server", server);
                         Settings.SetLocalSetting("Port", port);
                         Settings.SetLocalSetting("Password", password, isEncrypted: true);
+                        Settings.SetLocalSetting("IsSecure", isSecure ? "True" : "False");
 
                         this.StartFrameBuffer(connectionInfo);
                     });
