@@ -15,7 +15,9 @@
 namespace OldManOfTheVncMetro
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Runtime.InteropServices.WindowsRuntime;
+    using System.Threading;
     using System.Threading.Tasks;
     using PollRobots.OmotVncProtocol;
     using Windows.Devices.Input;
@@ -40,6 +42,7 @@ namespace OldManOfTheVncMetro
     public sealed partial class MainPage : Page
     {
         const int KeyboardHeight = 350;
+        private readonly ConcurrentQueue<Action> updateQueue = new ConcurrentQueue<Action>();
         private AConnectionOperations connection;
         private WriteableBitmap frameBufferBitmap;
         private WriteableBitmap zoomBufferBitmap;
@@ -51,6 +54,7 @@ namespace OldManOfTheVncMetro
         private bool isLeftShiftDown;
         private bool isRightShiftDown;
         private Popup settingsPopup;
+        private int updateInvokePending; 
 
         public MainPage()
         {
@@ -166,9 +170,9 @@ namespace OldManOfTheVncMetro
 
                     this.connection = Connection.CreateFromStreamSocket(
                         client,
-                        r => this.Invoke(() => this.OnRectangle(r)),
-                        s => this.Invoke(() => OnStateChange(s)),
-                        f => this.Invoke(() => OnException(f)));
+                        r => this.EnqueueUpdate(() => this.OnRectangle(r)),
+                        s => this.EnqueueUpdate(() => OnStateChange(s)),
+                        f => this.EnqueueUpdate(() => OnException(f)));
 
                     var requiresPassword = await this.connection.Handshake();
 
@@ -226,6 +230,31 @@ namespace OldManOfTheVncMetro
             });
 
             return source.Task;
+        }
+
+        void EnqueueUpdate(Action action)
+        {
+            this.updateQueue.Enqueue(action);
+            if (0 == Interlocked.CompareExchange(ref this.updateInvokePending, 1, 0))
+            {
+                this.Invoke(this.DrainUpdates);
+            }
+        }
+
+        void DrainUpdates()
+        {
+            try
+            {
+                Action action;
+                while (this.updateQueue.TryDequeue(out action))
+                {
+                    action();
+                }
+            }
+            finally
+            {
+                Interlocked.CompareExchange(ref this.updateInvokePending, 0, 1);
+            }
         }
 
         void Invoke(Action action)
