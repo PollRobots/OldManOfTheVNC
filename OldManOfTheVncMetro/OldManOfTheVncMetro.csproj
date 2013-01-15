@@ -132,6 +132,7 @@
     <Content Include="Assets\us.ini" />
     <Content Include="Assets\uk.ini" />
     <Content Include="Assets\de.ini" />
+    <Content Include="Assets\WideLogo.png" />
     <None Include="OldManOfTheVncMetro_TemporaryKey.pfx" />
   </ItemGroup>
   <ItemGroup>

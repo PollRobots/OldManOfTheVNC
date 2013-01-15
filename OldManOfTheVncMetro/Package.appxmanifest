@@ -15,8 +15,8 @@
   </Resources>
   <Applications>
     <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="OldManOfTheVncMetro.App">
-      <VisualElements DisplayName="Old Man of the VNC" Logo="Assets\Logo.png" SmallLogo="Assets\SmallLogo.png" Description="OldManOfTheVncMetro" ForegroundText="light" BackgroundColor="#464646">
-        <DefaultTile ShowName="allLogos" ShortName="OmotVNC" />
+      <VisualElements DisplayName="Old Man of the VNC" Logo="Assets\Logo.png" SmallLogo="Assets\SmallLogo.png" Description="OldManOfTheVncMetro" ForegroundText="light" BackgroundColor="#7700AA">
+        <DefaultTile ShowName="wideLogoOnly" ShortName="Old Man of tthe VNC" WideLogo="Assets\WideLogo.png" />
         <SplashScreen Image="Assets\SplashScreen.png" />
         <InitialRotationPreference>
           <Rotation Preference="landscape" />
