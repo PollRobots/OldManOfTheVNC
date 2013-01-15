@@ -1,4 +1,5 @@
-﻿//-------------------------------------------------------------------------------------------------
+﻿// -----------------------------------------------------------------------------
+// <copyright file="App.xaml.cs" company="Paul C. Roberts">
 //  Copyright 2012 Paul C. Roberts
 //
 //  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file 
@@ -10,7 +11,8 @@
 //  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
 //  either express or implied. See the License for the specific language governing permissions and 
 //  limitations under the License.
-//-------------------------------------------------------------------------------------------------
+// </copyright>
+// -----------------------------------------------------------------------------
 
 namespace OldManOfTheVncMetro
 {
@@ -23,16 +25,17 @@ namespace OldManOfTheVncMetro
     /// <summary>
     /// Provides application-specific behavior to supplement the default Application class.
     /// </summary>
-    sealed partial class App : Application
+    public sealed partial class App : Application
     {
-        /// <summary>
+        /// <summary>Initializes a new instance of the <see cref="App"/> class.</summary>
+        /// <remarks>
         /// Initializes the singleton application object.  This is the first line of authored code
         /// executed, and as such is the logical equivalent of main() or WinMain().
-        /// </summary>
+        /// </remarks>
         public App()
         {
             this.InitializeComponent();
-            this.Suspending += OnSuspending;
+            this.Suspending += this.OnSuspending;
         }
 
         /// <summary>
@@ -54,7 +57,7 @@ namespace OldManOfTheVncMetro
 
                 if (args.PreviousExecutionState == ApplicationExecutionState.Terminated)
                 {
-                    //TODO: Load state from previously suspended application
+                    // TODO: Load state from previously suspended application
                 }
 
                 // Place the frame in the current Window
@@ -71,6 +74,7 @@ namespace OldManOfTheVncMetro
                     throw new Exception("Failed to create initial page");
                 }
             }
+
             // Ensure the current window is active
             Window.Current.Activate();
         }
@@ -85,7 +89,8 @@ namespace OldManOfTheVncMetro
         private void OnSuspending(object sender, SuspendingEventArgs e)
         {
             var deferral = e.SuspendingOperation.GetDeferral();
-            //TODO: Save application state and stop any background activity
+
+            // TODO: Save application state and stop any background activity
             deferral.Complete();
         }
     }

@@ -1,29 +1,38 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
-using Windows.UI.ApplicationSettings;
-using Windows.UI.ViewManagement;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Controls.Primitives;
-using Windows.UI.Xaml.Data;
-using Windows.UI.Xaml.Input;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Navigation;
-
-// The User Control item template is documented at http://go.microsoft.com/fwlink/?LinkId=234236
+﻿// -----------------------------------------------------------------------------
+// <copyright file="KeyboardLayoutSettings.xaml.cs" company="Paul C. Roberts">
+//  Copyright 2012 Paul C. Roberts
+//
+//  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file 
+//  except in compliance with the License. You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software distributed under the 
+//  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+//  either express or implied. See the License for the specific language governing permissions and 
+//  limitations under the License.
+// </copyright>
+// -----------------------------------------------------------------------------
 
 namespace OldManOfTheVncMetro
 {
+    using System;
+    using System.Globalization;
+    using System.Threading.Tasks;
+    using Windows.UI.ApplicationSettings;
+    using Windows.UI.ViewManagement;
+    using Windows.UI.Xaml;
+    using Windows.UI.Xaml.Controls;
+    using Windows.UI.Xaml.Controls.Primitives;
+
+    /// <summary>The keyboard settings widget</summary>
     public sealed partial class KeyboardLayoutSettings : UserControl
     {
-        Keyboard keyboard;
+        /// <summary>The keyboard control being configured.</summary>
+        private Keyboard keyboard;
 
+        /// <summary>Initializes a new instance of the <see cref="KeyboardLayoutSettings"/> class.</summary>
+        /// <param name="appKeyboard">The keyboard control being configured.</param>
         public KeyboardLayoutSettings(Keyboard appKeyboard)
         {
             this.InitializeComponent();
@@ -31,9 +40,9 @@ namespace OldManOfTheVncMetro
 
             Task.Run(async () =>
             {
-                string selectedLayout = await Settings.GetLocalSetting("KeyboardLayout");
-                string opacityString = await Settings.GetLocalSetting("KeyboardOpacity", "50");
-                string toggle = await Settings.GetLocalSetting("KeyboardToggleModifierKeys");
+                string selectedLayout = await Settings.GetLocalSettingAsync("KeyboardLayout");
+                string opacityString = await Settings.GetLocalSettingAsync("KeyboardOpacity", "50");
+                string toggle = await Settings.GetLocalSettingAsync("KeyboardToggleModifierKeys");
                 double opacity;
                 if (!double.TryParse(opacityString, NumberStyles.Float, CultureInfo.InvariantCulture, out opacity))
                 {
@@ -56,17 +65,22 @@ namespace OldManOfTheVncMetro
                         }
                     }
 
-                    this.Opacity.Value = opacity;
+                    this.KeyboardOpacity.Value = opacity;
                     this.ToggleModifierKeys.IsOn = toggle == "Toggle";
                 });
             });
         }
 
+        /// <summary>Runs an action on the UI thread.</summary>
+        /// <param name="action">The action to run on the UI thread.</param>
         private void Invoke(Action action)
         {
-            this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => action());
+            var ignored = this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => action());
         }
 
+        /// <summary>Handles the back button being clicked by closing the popup and showing the settings pane.</summary>
+        /// <param name="sender">The parameter is not used.</param>
+        /// <param name="e">The parameter is not used.</param>
         private void BackClicked(object sender, RoutedEventArgs e)
         {
             var popup = this.Parent as Popup;
@@ -79,12 +93,13 @@ namespace OldManOfTheVncMetro
             {
                 SettingsPane.Show();
             }
-
         }
 
+        /// <summary>Handles a change in keyboard layout.</summary>
+        /// <param name="sender">The parameter is not used.</param>
+        /// <param name="e">The parameter is not used.</param>
         private void CurrentLayoutSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-
             var layout = this.CurrentLayout.SelectedItem as string;
             if (layout == null)
             {
@@ -94,25 +109,31 @@ namespace OldManOfTheVncMetro
             if (layout != this.keyboard.CurrentLayout)
             {
                 this.keyboard.CurrentLayout = layout;
-                Settings.SetLocalSetting("KeyboardLayout", layout);
+                Settings.SetLocalSettingAsync("KeyboardLayout", layout);
             }
         }
 
-        private void OpacityValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+        /// <summary>Handles a change in the keyboard opacity setting.</summary>
+        /// <param name="sender">The parameter is not used.</param>
+        /// <param name="e">The parameter is not used.</param>
+        private void KeyboardOpacityValueChanged(object sender, RangeBaseValueChangedEventArgs e)
         {
             if (this.keyboard != null)
             {
-                this.keyboard.Opacity = this.Opacity.Value / 100;
-                Settings.SetLocalSetting("KeyboardOpacity", this.Opacity.Value.ToString(CultureInfo.InvariantCulture));
+                this.keyboard.Opacity = this.KeyboardOpacity.Value / 100;
+                Settings.SetLocalSettingAsync("KeyboardOpacity", this.KeyboardOpacity.Value.ToString(CultureInfo.InvariantCulture));
             }
         }
 
+        /// <summary>Handles the toggling of the toggle modifier keys setting.</summary>
+        /// <param name="sender">The parameter is not used.</param>
+        /// <param name="e">The parameter is not used.</param>
         private void ToggleModifierKeysToggled(object sender, RoutedEventArgs e)
         {
             if (this.keyboard != null)
             {
                 this.keyboard.ToggleModifierKeys = this.ToggleModifierKeys.IsOn;
-                Settings.SetLocalSetting("KeyboardToggleModifierKeys", this.ToggleModifierKeys.IsOn ? "Toggle" : "Off");
+                Settings.SetLocalSettingAsync("KeyboardToggleModifierKeys", this.ToggleModifierKeys.IsOn ? "Toggle" : "Off");
             }
         }
     }

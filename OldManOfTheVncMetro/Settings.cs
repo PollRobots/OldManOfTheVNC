@@ -1,4 +1,4 @@
-﻿//-------------------------------------------------------------------------------------------------
+﻿// <copyright file="Settings.cs" company="Paul C. Roberts">
 //  Copyright 2012 Paul C. Roberts
 //
 //  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file 
@@ -10,7 +10,7 @@
 //  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
 //  either express or implied. See the License for the specific language governing permissions and 
 //  limitations under the License.
-//-------------------------------------------------------------------------------------------------
+// </copyright>
 
 namespace OldManOfTheVncMetro
 {
@@ -20,9 +20,15 @@ namespace OldManOfTheVncMetro
     using Windows.Security.Cryptography.DataProtection;
     using Windows.Storage;
 
+    /// <summary>A static class that abstracts access to local settings.</summary>
     internal static class Settings
     {
-        public static async Task<string> GetLocalSetting(string name, string defaultValue = "", bool isEncrypted = false)
+        /// <summary>Get the value of a local setting.</summary>
+        /// <param name="name">The name of the setting.</param>
+        /// <param name="defaultValue">The default value.</param>
+        /// <param name="isEncrypted">Is the setting encrypted.</param>
+        /// <returns>The value of the setting if available, or the default value.</returns>
+        public static async Task<string> GetLocalSettingAsync(string name, string defaultValue = "", bool isEncrypted = false)
         {
             object value = ApplicationData.Current.LocalSettings.Values[name];
             if (value == null)
@@ -50,7 +56,11 @@ namespace OldManOfTheVncMetro
             }
         }
 
-        public static async void SetLocalSetting(string name, string value, bool isEncrypted = false)
+        /// <summary>Sets the value of a local setting.</summary>
+        /// <param name="name">The name of the setting.</param>
+        /// <param name="value">The value to set.</param>
+        /// <param name="isEncrypted">Indicates if the value should be encrypted.</param>
+        public static async void SetLocalSettingAsync(string name, string value, bool isEncrypted = false)
         {
             if (isEncrypted)
             {

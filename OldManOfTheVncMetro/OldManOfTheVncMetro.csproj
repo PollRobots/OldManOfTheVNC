@@ -114,6 +114,7 @@
     <Compile Include="Keyboard.xaml.cs">
       <DependentUpon>Keyboard.xaml</DependentUpon>
     </Compile>
+    <Compile Include="KeyEventArgs.cs" />
     <Compile Include="MainPage.xaml.cs">
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>

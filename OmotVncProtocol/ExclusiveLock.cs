@@ -21,43 +21,14 @@ namespace PollRobots.OmotVncProtocol
     using System.Threading;
     using System.Threading.Tasks;
 
+    /// <summary>Implements an asynchronous exclusive lock.</summary>
     internal sealed class ExclusiveLock
     {
+        /// <summary>The currently held lock.</summary>
         private LockEntry currentEntry;
 
-        private class LockEntry : IDisposable
-        {
-            private readonly TaskCompletionSource<bool> source = new TaskCompletionSource<bool>();
-            private readonly ExclusiveLock parentLock;
-#if NETFX_CORE
-
-            public LockEntry(ExclusiveLock parent)
-            {
-                this.parentLock = parent;
-            }
-
-#else
-            private readonly StackTrace stackTrace;
-
-            public LockEntry(ExclusiveLock parent, StackTrace trace)
-            {
-                this.parentLock = parent;
-                this.stackTrace = trace;
-            }
-#endif
-
-            public void Dispose()
-            {
-                this.source.SetResult(true);
-                Interlocked.CompareExchange(ref this.parentLock.currentEntry, null, this);
-            }
-
-            public Task Wait()
-            {
-                return source.Task;
-            }
-        }
-
+        /// <summary>Enter the exclusive lock.</summary>
+        /// <returns>An async task,</returns>
         public async Task<IDisposable> Enter()
         {
 #if NETFX_CORE
@@ -66,7 +37,7 @@ namespace PollRobots.OmotVncProtocol
             LockEntry next = new LockEntry(this, new StackTrace());
 #endif
 
-            for (; ; )
+            for (;;)
             {
                 LockEntry current = this.currentEntry;
                 if (current != null)
@@ -78,6 +49,52 @@ namespace PollRobots.OmotVncProtocol
                 {
                     return next;
                 }
+            }
+        }
+
+        /// <summary>Represents a lock entry.</summary>
+        private class LockEntry : IDisposable
+        {
+            /// <summary>The task completion source used to signal the exit of the lock.</summary>
+            private readonly TaskCompletionSource<bool> source = new TaskCompletionSource<bool>();
+
+            /// <summary>The owning lock.</summary>
+            private readonly ExclusiveLock parentLock;
+
+#if NETFX_CORE
+            /// <summary>Initializes a new instance of the <see cref="LockEntry"/> class.</summary>
+            /// <param name="parent">The owning lock.</param>
+            public LockEntry(ExclusiveLock parent)
+            {
+                this.parentLock = parent;
+            }
+
+#else
+            /// <summary>The stack trace for this lock.</summary>
+            private readonly StackTrace stackTrace;
+
+            /// <summary>Initializes a new instance of the <see cref="LockEntry"/> class.</summary>
+            /// <param name="parent">The owning lock.</param>
+            /// <param name="trace">The current stack trace.</param>
+            public LockEntry(ExclusiveLock parent, StackTrace trace)
+            {
+                this.parentLock = parent;
+                this.stackTrace = trace;
+            }
+#endif
+
+            /// <summary>Disposes this object.</summary>
+            public void Dispose()
+            {
+                this.source.SetResult(true);
+                Interlocked.CompareExchange(ref this.parentLock.currentEntry, null, this);
+            }
+
+            /// <summary>Wait for the lock.</summary>
+            /// <returns>An async task.</returns>
+            public Task Wait()
+            {
+                return this.source.Task;
             }
         }
     }
