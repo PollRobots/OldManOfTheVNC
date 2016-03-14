@@ -443,7 +443,7 @@ namespace PollRobots.OmotVncProtocol
                     throw new InvalidDataException("Cannot parse protocol version");
                 }
 
-                if (major < ProtocolMajorVersion || minor < ProtocolMinorVersion)
+                if (major < ProtocolMajorVersion && minor < ProtocolMinorVersion)
                 {
                     throw new InvalidDataException("Server protocol version is not supported");
                 }
