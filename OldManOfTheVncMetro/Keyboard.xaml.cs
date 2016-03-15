@@ -21,7 +21,6 @@ namespace OldManOfTheVncMetro
     using System.Globalization;
     using System.IO;
     using System.Threading.Tasks;
-    using PollRobots.OmotVncProtocol;
     using Windows.Storage;
     using Windows.UI.Core;
     using Windows.UI.Xaml;
